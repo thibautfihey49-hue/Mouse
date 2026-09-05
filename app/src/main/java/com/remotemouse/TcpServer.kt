@@ -1,5 +1,8 @@
 package com.remotemouse
 
+import android.content.Context
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import kotlinx.coroutines.*
 import java.io.BufferedReader
@@ -12,32 +15,56 @@ class TcpServer(private val port: Int = 8888) {
     private var serverSocket: ServerSocket? = null
     private var clientSocket: Socket? = null
     private var job: Job? = null
+    private var nsdManager: NsdManager? = null
+    private var registrationListener: NsdManager.RegistrationListener? = null
+    
     var onCommandReceived: ((String) -> Unit)? = null
     var isRunning: Boolean = false
         private set
 
-    fun start() {
+    fun start(context: Context, deviceName: String = "RemoteMouse-${android.os.Build.MODEL.take(8)}") {
         if (isRunning) return
         isRunning = true
+        
         job = CoroutineScope(Dispatchers.IO).launch {
             try {
-                // ✅ ÉCOUTE SUR TOUTES LES INTERFACES = 0.0.0.0
                 serverSocket = ServerSocket()
                 serverSocket?.reuseAddress = true
                 serverSocket?.bind(InetSocketAddress("0.0.0.0", port))
+                val localPort = serverSocket?.localPort ?: port
                 
-                Log.d("RemoteMouse", "✅ Serveur démarré sur 0.0.0.0:$port")
+                Log.d("RemoteMouse", "✅ Serveur démarré sur 0.0.0.0:$localPort")
+                
+                // 📢 ANNONCER L'APPAREIL SUR LE RÉSEAU
+                nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+                val serviceInfo = NsdServiceInfo().apply {
+                    serviceName = deviceName
+                    serviceType = "_remotemouse._tcp."
+                    this.port = localPort
+                }
+                
+                registrationListener = object : NsdManager.RegistrationListener {
+                    override fun onRegistered(service: NsdServiceInfo?) {
+                        Log.d("RemoteMouse", "📢 Appareil visible : ${service?.serviceName}")
+                    }
+                    override fun onUnregistered(p0: NsdServiceInfo?) {}
+                    override fun onStartFailed(p0: Int) {
+                        Log.e("RemoteMouse", "⚠️ Annonce réseau impossible")
+                    }
+                    override fun onStopFailed(p0: Int) {}
+                }
+                
+                nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener)
                 
                 while (isRunning) {
                     try {
                         clientSocket = serverSocket?.accept() ?: break
-                        Log.d("RemoteMouse", "🔗 Client connecté depuis ${clientSocket?.inetAddress}")
+                        Log.d("RemoteMouse", "🔗 Client connecté !")
                         
                         val reader = BufferedReader(InputStreamReader(clientSocket?.getInputStream()))
                         while (isRunning && clientSocket?.isConnected == true) {
                             val command = reader.readLine() ?: break
                             command?.let {
-                                Log.d("RemoteMouse", "📥 Reçu: $it")
                                 withContext(Dispatchers.Main) {
                                     onCommandReceived?.invoke(it)
                                 }
@@ -48,7 +75,7 @@ class TcpServer(private val port: Int = 8888) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e("RemoteMouse", "Serveur erreur: ${e.message}")
+                Log.e("RemoteMouse", "Serveur: ${e.message}")
             }
         }
     }
@@ -56,6 +83,7 @@ class TcpServer(private val port: Int = 8888) {
     fun stop() {
         isRunning = false
         job?.cancel()
+        try { registrationListener?.let { nsdManager?.unregisterService(it) } } catch (e: Exception) {}
         try { clientSocket?.close() } catch (e: Exception) {}
         try { serverSocket?.close() } catch (e: Exception) {}
     }

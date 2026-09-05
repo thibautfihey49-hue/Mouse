@@ -11,19 +11,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Bienvenue sur RemoteMouse"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:padding="12dp"
         android:background="#E8F5E9"
         android:textColor="#2E7D32"
-        android:gravity="center"/>
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📱 Mode Serveur (appareil contrôlé)"
+        android:text="📱 1. Sur l'appareil à contrôler :"
         android:textSize="14sp"
-        android:layout_marginTop="16dp"
-        android:textStyle="bold"/>
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
 
     <Button
         android:id="@+id/btnStartServer"
@@ -32,47 +33,51 @@
         android:text="▶️ Démarrer le serveur"
         android:background="#4CAF50"
         android:textColor="#FFFFFF"
-        android:layout_marginVertical="8dp"/>
+        android:paddingVertical="12dp"
+        android:layout_marginBottom="24dp"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📲 Mode Client (contrôle un autre appareil)"
+        android:text="📲 2. Sur l'appareil qui contrôle :"
         android:textSize="14sp"
-        android:layout_marginTop="16dp"
-        android:textStyle="bold"/>
-
-    <EditText
-        android:id="@+id/etIp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Entrez l'IP de l'appareil (ex: 192.168.1.10)"
-        android:inputType="textUri"
-        android:background="#FFFFFF"
-        android:padding="12dp"/>
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
 
     <Button
         android:id="@+id/btnConnect"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🔌 Se connecter"
+        android:text="🔍 Rechercher un appareil"
         android:background="#2196F3"
         android:textColor="#FFFFFF"
-        android:layout_marginVertical="8dp"/>
+        android:paddingVertical="12dp"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnDisconnect"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔌 Déconnecter"
+        android:background="#F44336"
+        android:textColor="#FFFFFF"
+        android:paddingVertical="10dp"
+        android:layout_marginBottom="24dp"
+        android:enabled="false"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🖱️ Pavé tactile — glissez pour déplacer le curseur"
+        android:text="🖱️ Pavé tactile — Déplacez votre doigt"
         android:textSize="14sp"
-        android:layout_marginTop="16dp"/>
+        android:layout_marginBottom="8dp"/>
 
     <com.remotemouse.TouchpadView
         android:id="@+id/touchpad"
         android:layout_width="match_parent"
         android:layout_height="150dp"
         android:background="#E0E0E0"
-        android:layout_marginVertical="8dp"/>
+        android:layout_marginBottom="16dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -99,27 +104,10 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⌨️ Texte à envoyer"
-        android:textSize="14sp"
-        android:layout_marginTop="16dp"/>
-
-    <EditText
-        android:id="@+id/etKeyboard"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Écrivez du texte à envoyer..."
-        android:inputType="textMultiLine"
-        android:lines="2"
-        android:background="#FFFFFF"
-        android:padding="12dp"
-        android:layout_marginVertical="8dp"/>
-
-    <Button
-        android:id="@+id/btnSendText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📤 Envoyer"
-        android:background="#FF9800"
-        android:textColor="#FFFFFF"/>
+        android:text="💡 Les 2 appareils doivent être sur le MÊME Wi-Fi"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginTop="16dp"
+        android:textColor="#666666"/>
 
 </LinearLayout>
