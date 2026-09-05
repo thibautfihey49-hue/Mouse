@@ -71,7 +71,7 @@ class MainActivity : AppCompatActivity() {
         btnSendText.setOnClickListener {
             val text = etKeyboard.text.toString()
             if (text.isNotEmpty() && client.isConnected) {
-                client.sendCommand("KEY|${text.replace(" ", "+")}")
+                client.sendCommand("TEXT|$text")
                 etKeyboard.text.clear()
             }
         }
@@ -82,8 +82,9 @@ class MainActivity : AppCompatActivity() {
                     InputDispatcher.dispatchCommand(command)
                 }
                 tvStatus.text = when {
-                    command.startsWith("MOVE") -> "Déplacement souris"
+                    command.startsWith("MOVE") -> "Déplacement"
                     command == "CLICK" -> "Clic gauche"
+                    command == "RIGHT_CLICK" -> "Clic droit"
                     else -> "Reçu: $command"
                 }
             }
@@ -92,8 +93,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun startServer() {
         if (!isAccessibilityEnabled()) {
-            Toast.makeText(this, "⚠️ Activez d'abord l'accessibilité !", Toast.LENGTH_LONG).show()
-            openAccessibilitySettings()
+            Toast.makeText(this, "⚠️ Activez l'accessibilité pour RemoteMouse", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
         isServerMode = true
@@ -101,8 +102,8 @@ class MainActivity : AppCompatActivity() {
         btnStartServer.text = "🛑 Arrêter le serveur"
         btnConnect.isEnabled = false
         etIp.isEnabled = false
-        val ipAddress = getLocalIpAddress()
-        tvStatus.text = "✅ Serveur en ligne\nIP: $ipAddress:8888"
+        val ip = getLocalIpAddress()
+        tvStatus.text = "✅ Serveur en ligne\nIP: $ip:8888"
         Toast.makeText(this, "Serveur démarré !", Toast.LENGTH_SHORT).show()
     }
 
@@ -126,7 +127,7 @@ class MainActivity : AppCompatActivity() {
                     client.disconnect()
                     tvStatus.text = "Déconnecté"
                     btnConnect.text = "🔌 Se connecter"
-                    btnConnect.setOnClickListener { connectToDevice(etIp.text.toString()) }
+                    btnConnect.setOnClickListener { connectToDevice(etIp.text.toString().trim()) }
                 }
             } else {
                 tvStatus.text = "❌ Échec de la connexion"
@@ -137,17 +138,13 @@ class MainActivity : AppCompatActivity() {
     private fun checkAccessibilityPermission() {
         if (!isAccessibilityEnabled()) {
             Toast.makeText(this, "👉 Activez l'accessibilité pour RemoteMouse", Toast.LENGTH_LONG).show()
-            openAccessibilitySettings()
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
     }
 
     private fun isAccessibilityEnabled(): Boolean {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
         return enabled?.contains(packageName) == true
-    }
-
-    private fun openAccessibilitySettings() {
-        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
     private fun getLocalIpAddress(): String {
@@ -172,7 +169,10 @@ class TouchpadView(context: android.content.Context, attrs: android.util.Attribu
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> { lastX = event.x; lastY = event.y }
+            MotionEvent.ACTION_DOWN -> {
+                lastX = event.x
+                lastY = event.y
+            }
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - lastX
                 val dy = event.y - lastY

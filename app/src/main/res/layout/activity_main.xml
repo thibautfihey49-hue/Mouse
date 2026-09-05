@@ -20,7 +20,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📱 Mode Appareil Contrôlé :"
+        android:text="📱 Mode Serveur (appareil contrôlé)"
         android:textSize="14sp"
         android:layout_marginTop="16dp"
         android:textStyle="bold"/>
@@ -37,7 +37,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📲 Mode Contrôleur :"
+        android:text="📲 Mode Client (contrôle un autre appareil)"
         android:textSize="14sp"
         android:layout_marginTop="16dp"
         android:textStyle="bold"/>
@@ -46,7 +46,7 @@
         android:id="@+id/etIp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Entrez l'IP de l'appareil contrôlé (ex: 192.168.1.10)"
+        android:hint="Entrez l'IP de l'appareil (ex: 192.168.1.10)"
         android:inputType="textUri"
         android:background="#FFFFFF"
         android:padding="12dp"/>
@@ -63,7 +63,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🖱️ Pavé tactile (glissez pour déplacer le curseur)"
+        android:text="🖱️ Pavé tactile — glissez pour déplacer le curseur"
         android:textSize="14sp"
         android:layout_marginTop="16dp"/>
 
@@ -99,7 +99,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⌨️ Clavier distant"
+        android:text="⌨️ Texte à envoyer"
         android:textSize="14sp"
         android:layout_marginTop="16dp"/>
 
@@ -107,7 +107,7 @@
         android:id="@+id/etKeyboard"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Tapez votre texte ici..."
+        android:hint="Écrivez du texte à envoyer..."
         android:inputType="textMultiLine"
         android:lines="2"
         android:background="#FFFFFF"
@@ -118,7 +118,7 @@
         android:id="@+id/btnSendText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📤 Envoyer le texte"
+        android:text="📤 Envoyer"
         android:background="#FF9800"
         android:textColor="#FFFFFF"/>
 

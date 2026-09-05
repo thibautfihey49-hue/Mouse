@@ -26,7 +26,6 @@ object InputDispatcher {
             }
             "CLICK" -> performClick()
             "RIGHT_CLICK" -> performClick()
-            "KEY" -> {}
         }
     }
 
