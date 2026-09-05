@@ -29,7 +29,7 @@ jobs:
           unzip -q gradle-8.2-bin.zip
           echo "$PWD/gradle-8.2/bin" >> $GITHUB_PATH
 
-      - name: 🛠️ Générer gradle-wrapper.jar AUTOMATIQUEMENT
+      - name: 🛠️ Générer gradle-wrapper.jar
         run: gradle wrapper --gradle-version 8.2
 
       - name: 🔑 Droits d'exécution
