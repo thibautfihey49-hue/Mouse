@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.*
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 
@@ -20,24 +21,35 @@ class TcpServer(private val port: Int = 8888) {
         isRunning = true
         job = CoroutineScope(Dispatchers.IO).launch {
             try {
-                serverSocket = ServerSocket(port)
-                Log.d("RemoteMouse", "Serveur démarré sur port $port")
+                // ✅ ÉCOUTE SUR TOUTES LES INTERFACES = 0.0.0.0
+                serverSocket = ServerSocket()
+                serverSocket?.reuseAddress = true
+                serverSocket?.bind(InetSocketAddress("0.0.0.0", port))
+                
+                Log.d("RemoteMouse", "✅ Serveur démarré sur 0.0.0.0:$port")
+                
                 while (isRunning) {
                     try {
                         clientSocket = serverSocket?.accept() ?: break
+                        Log.d("RemoteMouse", "🔗 Client connecté depuis ${clientSocket?.inetAddress}")
+                        
                         val reader = BufferedReader(InputStreamReader(clientSocket?.getInputStream()))
                         while (isRunning && clientSocket?.isConnected == true) {
                             val command = reader.readLine() ?: break
                             command?.let {
-                                Log.d("RemoteMouse", "Reçu: $it")
+                                Log.d("RemoteMouse", "📥 Reçu: $it")
                                 withContext(Dispatchers.Main) {
                                     onCommandReceived?.invoke(it)
                                 }
                             }
                         }
-                    } catch (e: Exception) { if (isRunning) e.printStackTrace() }
+                    } catch (e: Exception) {
+                        if (isRunning) Log.e("RemoteMouse", "Erreur: ${e.message}")
+                    }
                 }
-            } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) {
+                Log.e("RemoteMouse", "Serveur erreur: ${e.message}")
+            }
         }
     }
 
