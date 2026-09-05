@@ -42,11 +42,12 @@ class TcpServer(private val port: Int = 8888) {
                     this.port = localPort
                 }
                 
+                // ✅ NOMS DE MÉTHODES EXACTS DE L'INTERFACE ANDROID
                 registrationListener = object : NsdManager.RegistrationListener {
-                    override fun onRegistered(service: NsdServiceInfo) {
+                    override fun onServiceRegistered(service: NsdServiceInfo) {
                         Log.d("RemoteMouse", "📢 Appareil visible : ${service.serviceName}")
                     }
-                    override fun onUnregistered(service: NsdServiceInfo) {}
+                    override fun onServiceUnregistered(service: NsdServiceInfo) {}
                     override fun onRegistrationFailed(service: NsdServiceInfo, errorCode: Int) {
                         Log.e("RemoteMouse", "⚠️ Annonce réseau impossible (code $errorCode)")
                     }
