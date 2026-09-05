@@ -9,9 +9,6 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
@@ -46,12 +43,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        // 📱 Mode Serveur
         btnStartServer.setOnClickListener {
             if (!isServerMode) startServer() else stopServer()
         }
 
-        // 📲 Mode Client — Recherche automatique
         btnConnect.setOnClickListener {
             if (!client.isConnected) {
                 startClientDiscovery()
@@ -64,12 +59,10 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = "🔌 Déconnecté"
         }
 
-        // 🖱️ Pavé tactile
         touchpad.onTouchListener = { dx, dy ->
             if (client.isConnected) client.sendCommand("MOVE|$dx|$dy")
         }
 
-        // 🖱️ Clics
         btnLeftClick.setOnClickListener {
             if (client.isConnected) client.sendCommand("CLICK")
         }
@@ -77,19 +70,18 @@ class MainActivity : AppCompatActivity() {
             if (client.isConnected) client.sendCommand("RIGHT_CLICK")
         }
 
-        // 📡 Callbacks du client
         client.onDeviceFound = { devices ->
             if (devices.isEmpty()) {
-                tvStatus.text = "🔍 Aucun appareil trouvé\nAssurez-vous d'être sur le même Wi-Fi"
+                tvStatus.text = "🔍 Aucun appareil trouvé\nMême Wi-Fi ?"
             } else if (devices.size == 1) {
                 tvStatus.text = "✅ ${devices[0]} détecté... Connexion automatique !"
             } else {
-                tvStatus.text = "✅ ${devices.size} appareils détectés : ${devices.joinToString()}"
+                tvStatus.text = "✅ ${devices.size} appareils détectés"
             }
         }
 
         client.onConnected = {
-            tvStatus.text = "✅ CONNECTÉ ! Utilisez le pavé ci-dessous"
+            tvStatus.text = "✅ CONNECTÉ ! Utilisez le pavé"
             updateUI()
         }
 
@@ -97,13 +89,12 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = "❌ Échec de la connexion\nRéessayez..."
         }
 
-        // 📡 Callbacks du serveur
         server.onCommandReceived = { command ->
             runOnUiThread {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     InputDispatcher.dispatchCommand(command)
                 }
-                tvStatus.text = "✅ Prêt — Commande : $command"
+                tvStatus.text = "✅ Prêt — Commande reçue"
             }
         }
     }
@@ -132,11 +123,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startClientDiscovery() {
-        tvStatus.text = "🔍 Recherche d'appareils...\nVérifiez que l'appareil à contrôler est démarré"
+        tvStatus.text = "🔍 Recherche d'appareils..."
         btnConnect.isEnabled = false
         client.startDiscovery()
         
-        // ⏱️ Timeout après 15s
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             if (!client.isConnected) {
                 client.stopDiscovery()

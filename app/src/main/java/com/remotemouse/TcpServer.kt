@@ -35,7 +35,6 @@ class TcpServer(private val port: Int = 8888) {
                 
                 Log.d("RemoteMouse", "✅ Serveur démarré sur 0.0.0.0:$localPort")
                 
-                // 📢 ANNONCER L'APPAREIL SUR LE RÉSEAU
                 nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
                 val serviceInfo = NsdServiceInfo().apply {
                     serviceName = deviceName
@@ -44,14 +43,14 @@ class TcpServer(private val port: Int = 8888) {
                 }
                 
                 registrationListener = object : NsdManager.RegistrationListener {
-                    override fun onRegistered(service: NsdServiceInfo?) {
-                        Log.d("RemoteMouse", "📢 Appareil visible : ${service?.serviceName}")
+                    override fun onRegistered(service: NsdServiceInfo) {
+                        Log.d("RemoteMouse", "📢 Appareil visible : ${service.serviceName}")
                     }
-                    override fun onUnregistered(p0: NsdServiceInfo?) {}
-                    override fun onStartFailed(p0: Int) {
-                        Log.e("RemoteMouse", "⚠️ Annonce réseau impossible")
+                    override fun onUnregistered(service: NsdServiceInfo) {}
+                    override fun onRegistrationFailed(service: NsdServiceInfo, errorCode: Int) {
+                        Log.e("RemoteMouse", "⚠️ Annonce réseau impossible (code $errorCode)")
                     }
-                    override fun onStopFailed(p0: Int) {}
+                    override fun onUnregistrationFailed(service: NsdServiceInfo, errorCode: Int) {}
                 }
                 
                 nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener)

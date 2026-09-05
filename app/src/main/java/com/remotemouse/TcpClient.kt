@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.PrintWriter
 import java.net.Socket
@@ -22,7 +24,6 @@ class TcpClient(private val context: Context) {
     var onConnected: (() -> Unit)? = null
     var onConnectionFailed: (() -> Unit)? = null
 
-    // 🔍 RECHERCHE LES APPAREILS TOUS SEULS
     fun startDiscovery() {
         foundServices.clear()
         discoveryListener = object : NsdManager.DiscoveryListener {
@@ -37,7 +38,6 @@ class TcpClient(private val context: Context) {
                         Log.d("RemoteMouse", "✅ Appareil trouvé : ${service.serviceName}")
                         onDeviceFound?.invoke(deviceNames)
                         
-                        // ⚡ AUTO-CONNEXION si un seul appareil détecté
                         if (foundServices.size == 1) {
                             connectToService(service)
                         }
@@ -49,10 +49,10 @@ class TcpClient(private val context: Context) {
                 onDeviceFound?.invoke(foundServices.map { it.serviceName })
             }
             override fun onDiscoveryStopped(serviceType: String) {}
-            override fun onStartFailed(errorCode: Int) {
-                Log.e("RemoteMouse", "❌ Recherche impossible")
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                Log.e("RemoteMouse", "❌ Recherche impossible (code $errorCode)")
             }
-            override fun onStopFailed(errorCode: Int) {}
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
         }
         nsdManager.discoverServices("_remotemouse._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
     }
@@ -62,26 +62,26 @@ class TcpClient(private val context: Context) {
         foundServices.clear()
     }
 
-    // 🤝 CONNEXION SANS IP — par nom d'appareil
-    suspend fun connectToService(service: NsdServiceInfo): Boolean = withContext(Dispatchers.IO) {
+    private fun connectToService(service: NsdServiceInfo) {
         stopDiscovery()
-        try {
-            socket = Socket(service.host, service.port)
-            writer = PrintWriter(socket?.getOutputStream(), true)
-            isConnected = true
-            Log.d("RemoteMouse", "✅ Connecté à ${service.serviceName} !")
-            onConnected?.invoke()
-            true
-        } catch (e: Exception) {
-            Log.e("RemoteMouse", "❌ Connexion échouée : ${e.message}")
-            isConnected = false
-            onConnectionFailed?.invoke()
-            false
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                socket = Socket(service.host, service.port)
+                writer = PrintWriter(socket?.getOutputStream(), true)
+                isConnected = true
+                Log.d("RemoteMouse", "✅ Connecté à ${service.serviceName} !")
+                withContext(Dispatchers.Main) {
+                    onConnected?.invoke()
+                }
+            } catch (e: Exception) {
+                Log.e("RemoteMouse", "❌ Connexion échouée : ${e.message}")
+                isConnected = false
+                withContext(Dispatchers.Main) {
+                    onConnectionFailed?.invoke()
+                }
+            }
         }
     }
-
-    // 📌 Pour choisir manuellement dans une liste
-    fun getFoundDevices(): List<NsdServiceInfo> = foundServices
 
     fun sendCommand(command: String) {
         if (!isConnected) return
