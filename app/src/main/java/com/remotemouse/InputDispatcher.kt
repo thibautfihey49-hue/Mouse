@@ -46,7 +46,6 @@ object InputDispatcher {
             val centerX = dm.widthPixels / 2f
             val centerY = dm.heightPixels / 2f
             
-            // Déplacement relatif — plus naturel
             val targetX = (centerX + dx * 3f).coerceIn(100f, dm.widthPixels - 100f)
             val targetY = (centerY + dy * 3f).coerceIn(100f, dm.heightPixels - 100f)
             
@@ -59,12 +58,7 @@ object InputDispatcher {
                 .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
                 .build()
             
-            svc.dispatchGesture(gesture, object : GestureDescription.OnGestureCompleteCallback {
-                override fun onGestureComplete(gesture: GestureDescription, completed: Boolean) {
-                    Log.d(TAG, "Déplacement: $completed")
-                }
-            }, null)
-            
+            svc.dispatchGesture(gesture, null, null)
             Log.d(TAG, "Déplacement envoyé: dx=$dx, dy=$dy")
         } catch (e: Exception) {
             Log.e(TAG, "Erreur déplacement: ${e.message}")
@@ -83,24 +77,12 @@ object InputDispatcher {
             val x = dm.widthPixels / 2f
             val y = dm.heightPixels / 2f
             
-            // Clic = toucher + relâcher
-            val downPath = Path().apply { moveTo(x, y) }
-            val downGesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(downPath, 0, 10))
+            val path = Path().apply { moveTo(x, y) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 10))
                 .build()
             
-            svc.dispatchGesture(downGesture, object : GestureDescription.OnGestureCompleteCallback {
-                override fun onGestureComplete(gesture: GestureDescription, completed: Boolean) {
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        val upPath = Path().apply { moveTo(x, y) }
-                        val upGesture = GestureDescription.Builder()
-                            .addStroke(GestureDescription.StrokeDescription(upPath, 0, 10))
-                            .build()
-                        svc.dispatchGesture(upGesture, null, null)
-                    }, 50)
-                }
-            }, null)
-            
+            svc.dispatchGesture(gesture, null, null)
             Log.d(TAG, "Clic envoyé")
         } catch (e: Exception) {
             Log.e(TAG, "Erreur clic: ${e.message}")
