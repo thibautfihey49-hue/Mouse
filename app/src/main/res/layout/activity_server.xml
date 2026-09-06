@@ -4,15 +4,16 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
-    android:background="#F5F5F5">
+    android:background="#F8F9FA">
 
     <Button
-        android:id="@+id/btnBackToMain"
+        android:id="@+id/btnBackServer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="← Retour"
-        android:background="#E0E0E0"
-        android:layout_marginBottom="10dp"/>
+        android:background="#E5E7EB"
+        android:textColor="#374151"
+        android:layout_marginBottom="16dp"/>
 
     <TextView
         android:layout_width="match_parent"
@@ -21,54 +22,61 @@
         android:textSize="20sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:layout_marginBottom="10dp"/>
+        android:layout_marginBottom="16dp"/>
 
     <TextView
         android:id="@+id/tvServerIp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="🌐 IP: ..."
-        android:textSize="16sp"
-        android:padding="12dp"
-        android:background="#E3F2FD"
-        android:layout_marginBottom="10dp"/>
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:padding="16dp"
+        android:background="#DBEAFE"
+        android:textColor="#1E40AF"
+        android:layout_marginBottom="12dp"/>
 
     <TextView
         android:id="@+id/tvServerStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="✅ Prêt"
-        android:textSize="14sp"
-        android:padding="10dp"
-        android:background="#E8F5E9"
-        android:layout_marginBottom="10dp"/>
+        android:textSize="15sp"
+        android:padding="12dp"
+        android:background="#D1FAE5"
+        android:textColor="#065F46"
+        android:layout_marginBottom="16dp"/>
 
     <Button
         android:id="@+id/btnStartServer"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
+        android:layout_height="65dp"
         android:text="▶️ DÉMARRER LE SERVEUR"
-        android:background="#2196F3"
+        android:background="#2563EB"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        android:layout_marginBottom="10dp"/>
+        android:textSize="17sp"
+        android:layout_marginBottom="16dp"
+        android:elevation="2dp"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📋 Commandes reçues:"
-        android:textSize="12sp"
-        android:textStyle="bold"/>
+        android:text="📋 Activité :"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="#4B5563"/>
 
     <TextView
-        android:id="@+id/tvReceivedCommands"
+        android:id="@+id/tvServerLog"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:text=""
-        android:textSize="10sp"
-        android:padding="8dp"
-        android:background="#EEEEEE"
-        android:fontFamily="monospace"/>
+        android:textSize="11sp"
+        android:padding="12dp"
+        android:background="#FFFFFF"
+        android:textColor="#374151"
+        android:fontFamily="monospace"
+        android:scrollbars="vertical"/>
 
 </LinearLayout>

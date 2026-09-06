@@ -14,10 +14,11 @@ object InputDispatcher {
     private var displayHeight = 2340f
     private var currentX = 540f
     private var currentY = 1170f
+    private val moveSpeed = 1.2f
     
     fun attachService(svc: AccessibilityInputService) {
         service = svc
-        Log.d(TAG, "Service attaché")
+        Log.d(TAG, "✅ Service attaché")
         val wm = svc.getSystemService(AccessibilityService.WINDOW_SERVICE) as WindowManager
         val display = wm.defaultDisplay
         val realSize = android.graphics.Point()
@@ -26,11 +27,11 @@ object InputDispatcher {
         displayHeight = realSize.y.toFloat()
         currentX = displayWidth / 2f
         currentY = displayHeight / 2f
-        Log.d(TAG, "Ecran: ${displayWidth}x${displayHeight}")
+        Log.d(TAG, "📐 Écran: ${displayWidth}x${displayHeight}")
     }
     
     fun handleCommand(cmd: String) {
-        Log.d(TAG, "Commande: $cmd")
+        Log.d(TAG, "📥 Commande: $cmd")
         val parts = cmd.split("|")
         if (parts.isEmpty()) return
         
@@ -39,7 +40,7 @@ object InputDispatcher {
                 if (parts.size >= 3) {
                     val dx = parts[1].toFloatOrNull() ?: 0f
                     val dy = parts[2].toFloatOrNull() ?: 0f
-                    performMove(dx, dy)
+                    performMove(dx * moveSpeed, dy * moveSpeed)
                 }
             }
             "CLICK" -> performClick()
@@ -50,8 +51,8 @@ object InputDispatcher {
         val svc = service ?: return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         
-        currentX = (currentX + dx).coerceIn(50f, displayWidth - 50f)
-        currentY = (currentY + dy).coerceIn(50f, displayHeight - 50f)
+        currentX = (currentX + dx).coerceIn(30f, displayWidth - 30f)
+        currentY = (currentY + dy).coerceIn(30f, displayHeight - 30f)
         
         val path = Path()
         path.moveTo(currentX, currentY)
@@ -71,7 +72,7 @@ object InputDispatcher {
         path.moveTo(currentX, currentY)
         
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 40))
             .build()
         
         svc.dispatchGesture(gesture, null, null)

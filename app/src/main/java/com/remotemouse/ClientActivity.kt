@@ -22,9 +22,9 @@ class ClientActivity : AppCompatActivity() {
     private lateinit var btnConnect: Button
     private lateinit var btnDisconnect: Button
     private lateinit var tvStatus: TextView
-    private lateinit var tvDebug: TextView
+    private lateinit var tvLog: TextView
     private lateinit var touchpad: View
-    private lateinit var btnClick: Button
+    private lateinit var btnLeftClick: Button
     private lateinit var btnBack: Button
     
     private var socket: Socket? = null
@@ -36,6 +36,7 @@ class ClientActivity : AppCompatActivity() {
     
     private var lastX = 0f
     private var lastY = 0f
+    private var moveThreshold = 4f
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,37 +44,41 @@ class ClientActivity : AppCompatActivity() {
         
         etIp = findViewById(R.id.etServerIp)
         btnConnect = findViewById(R.id.btnConnect)
-        btnDisconnect = findViewById(R.id.btnDisconnectClient)
+        btnDisconnect = findViewById(R.id.btnDisconnect)
         tvStatus = findViewById(R.id.tvClientStatus)
-        tvDebug = findViewById(R.id.tvClientDebug)
-        touchpad = findViewById(R.id.touchpadClient)
-        btnClick = findViewById(R.id.btnClickClient)
-        btnBack = findViewById(R.id.btnBackToMainClient)
+        tvLog = findViewById(R.id.tvClientLog)
+        touchpad = findViewById(R.id.touchpad)
+        btnLeftClick = findViewById(R.id.btnLeftClick)
+        btnBack = findViewById(R.id.btnBackClient)
         
         btnConnect.setOnClickListener { connect() }
         btnDisconnect.setOnClickListener { disconnect() }
         btnBack.setOnClickListener { finish() }
-        btnClick.setOnClickListener { sendCommand("CLICK") }
+        btnLeftClick.setOnClickListener { sendCommand("CLICK") }
         
         setupTouchpad()
-        updateUI(false)
+        updateUI()
     }
     
-    private fun debugLog(msg: String) {
+    private fun log(msg: String) {
         Log.d(TAG, msg)
-        runOnUiThread { tvDebug.append("$msg\n") }
+        runOnUiThread { tvLog.append("$msg\n") }
     }
     
     private fun setupTouchpad() {
         touchpad.setOnTouchListener { _, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> { lastX = event.x; lastY = event.y }
+                MotionEvent.ACTION_DOWN -> {
+                    lastX = event.x
+                    lastY = event.y
+                }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.x - lastX
                     val dy = event.y - lastY
-                    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+                    if (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold) {
                         sendCommand("MOVE|$dx|$dy")
-                        lastX = event.x; lastY = event.y
+                        lastX = event.x
+                        lastY = event.y
                     }
                 }
             }
@@ -90,9 +95,8 @@ class ClientActivity : AppCompatActivity() {
         
         isRunning = true
         runOnUiThread {
-            updateUI(true)
-            tvStatus.text = "🔌 Connexion à $ip:$PORT..."
-            tvDebug.text = ""
+            tvStatus.text = "🔌 Connexion..."
+            tvLog.text = "📋 Journal:\n"
         }
         
         scope.launch {
@@ -100,32 +104,31 @@ class ClientActivity : AppCompatActivity() {
                 socket = Socket()
                 socket!!.tcpNoDelay = true
                 socket!!.keepAlive = true
-                socket!!.connect(java.net.InetSocketAddress(ip, PORT), 10000)
+                socket!!.connect(java.net.InetSocketAddress(ip, PORT), 8000)
                 
                 output = PrintWriter(BufferedWriter(OutputStreamWriter(socket!!.getOutputStream(), StandardCharsets.UTF_8)), true)
                 input = BufferedReader(InputStreamReader(socket!!.getInputStream(), StandardCharsets.UTF_8))
                 
                 isConnected = true
-                debugLog("✅ Connecté à $ip:$PORT")
-                
+                log("✅ Connecté à $ip:$PORT")
                 runOnUiThread {
-                    tvStatus.text = "✅ CONNECTÉ !\nDéplacez votre doigt sur le pavé."
-                    updateUI(false)
+                    tvStatus.text = "✅ CONNECTÉ !\nDéplacez votre doigt sur le pavé"
+                    updateUI()
                 }
                 
                 while (isRunning && isConnected) {
                     try {
                         val line = input!!.readLine() ?: break
-                        debugLog("📩 $line")
+                        log("← $line")
                     } catch (e: Exception) { break }
                 }
             } catch (e: Exception) {
-                debugLog("❌ ${e.message}")
+                log("❌ ${e.message}")
                 runOnUiThread {
-                    tvStatus.text = "❌ ÉCHEC: ${e.message}"
-                    Toast.makeText(this@ClientActivity, "Connexion échouée", Toast.LENGTH_SHORT).show()
+                    tvStatus.text = "❌ Échec: ${e.message}"
+                    Toast.makeText(this@ClientActivity, "Impossible de se connecter", Toast.LENGTH_SHORT).show()
                     isConnected = false
-                    updateUI(false)
+                    updateUI()
                 }
             }
         }
@@ -134,29 +137,24 @@ class ClientActivity : AppCompatActivity() {
     private fun sendCommand(cmd: String) {
         if (!isConnected || output == null) {
             runOnUiThread {
-                Toast.makeText(this@ClientActivity, "Connectez-vous d'abord !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@ClientActivity, "Connectez-vous d'abord", Toast.LENGTH_SHORT).show()
             }
             return
         }
         
         scope.launch {
             try {
-                debugLog("📤 $cmd")
+                log("→ $cmd")
                 output!!.println(cmd)
                 output!!.flush()
-                
-                if (output!!.checkError()) {
-                    debugLog("❌ ERREUR ENVOI")
-                    isConnected = false
-                    runOnUiThread {
-                        tvStatus.text = "❌ Connexion perdue"
-                        updateUI(false)
-                    }
-                }
+                if (output!!.checkError()) throw IOException("Erreur d'envoi")
             } catch (e: Exception) {
-                debugLog("❌ ${e.message}")
+                log("❌ ${e.message}")
                 isConnected = false
-                runOnUiThread { updateUI(false) }
+                runOnUiThread {
+                    tvStatus.text = "❌ Connexion perdue"
+                    updateUI()
+                }
             }
         }
     }
@@ -168,17 +166,16 @@ class ClientActivity : AppCompatActivity() {
         input = null; output = null; socket = null
         runOnUiThread {
             tvStatus.text = "🔌 Déconnecté"
-            tvDebug.text = ""
-            updateUI(false)
+            updateUI()
         }
     }
     
-    private fun updateUI(connecting: Boolean) {
-        btnConnect.isEnabled = !isConnected && !connecting
+    private fun updateUI() {
+        btnConnect.isEnabled = !isConnected
         btnDisconnect.isEnabled = isConnected
         etIp.isEnabled = !isConnected
         touchpad.isEnabled = isConnected
-        btnClick.isEnabled = isConnected
+        btnLeftClick.isEnabled = isConnected
     }
     
     override fun onDestroy() {

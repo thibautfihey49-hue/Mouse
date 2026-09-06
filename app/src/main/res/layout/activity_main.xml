@@ -5,42 +5,53 @@
     android:orientation="vertical"
     android:padding="24dp"
     android:gravity="center_horizontal"
-    android:background="#F5F5F5">
+    android:background="#F8F9FA">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="🖱️ WiFi Mouse"
-        android:textSize="28sp"
+        android:textSize="32sp"
         android:textStyle="bold"
-        android:layout_marginTop="40dp"
+        android:layout_marginTop="60dp"
+        android:layout_marginBottom="8dp"/>
+    
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Contrôlez un autre téléphone Android via WiFi"
+        android:textSize="14sp"
+        android:textColor="#666666"
         android:layout_marginBottom="60dp"/>
 
     <Button
-        android:id="@+id/btnServerMode"
+        android:id="@+id/btnServer"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="90dp"
         android:text="📱 Je suis l'appareil à CONTRÔLER"
-        android:background="#2196F3"
+        android:background="#2563EB"
         android:textColor="#FFFFFF"
         android:textSize="16sp"
-        android:layout_marginBottom="20dp"/>
+        android:layout_marginBottom="16dp"
+        android:elevation="2dp"/>
 
     <Button
-        android:id="@+id/btnClientMode"
+        android:id="@+id/btnClient"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="90dp"
         android:text="🎮 Je suis la SOURIS"
-        android:background="#4CAF50"
+        android:background="#16A34A"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"/>
+        android:textSize="16sp"
+        android:layout_marginBottom="40dp"
+        android:elevation="2dp"/>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="\n⚠️ Les 2 appareils doivent être sur le MÊME WiFi"
-        android:textSize="14sp"
-        android:gravity="center"
-        android:layout_marginTop="40dp"/>
+        android:text="ℹ️ Les deux téléphones doivent être connectés au même WiFi"
+        android:textSize="13sp"
+        android:textColor="#888888"
+        android:gravity="center"/>
 
 </LinearLayout>

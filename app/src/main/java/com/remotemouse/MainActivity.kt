@@ -10,10 +10,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         
-        findViewById<Button>(R.id.btnServerMode).setOnClickListener {
+        findViewById<Button>(R.id.btnServer).setOnClickListener {
             startActivity(Intent(this, ServerActivity::class.java))
         }
-        findViewById<Button>(R.id.btnClientMode).setOnClickListener {
+        findViewById<Button>(R.id.btnClient).setOnClickListener {
             startActivity(Intent(this, ClientActivity::class.java))
         }
     }

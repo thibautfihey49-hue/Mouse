@@ -21,7 +21,7 @@ class ServerActivity : AppCompatActivity() {
     
     private lateinit var tvStatus: TextView
     private lateinit var tvIp: TextView
-    private lateinit var tvReceived: TextView
+    private lateinit var tvLog: TextView
     private lateinit var btnStart: Button
     private lateinit var btnBack: Button
     
@@ -38,11 +38,11 @@ class ServerActivity : AppCompatActivity() {
         
         tvStatus = findViewById(R.id.tvServerStatus)
         tvIp = findViewById(R.id.tvServerIp)
-        tvReceived = findViewById(R.id.tvReceivedCommands)
+        tvLog = findViewById(R.id.tvServerLog)
         btnStart = findViewById(R.id.btnStartServer)
-        btnBack = findViewById(R.id.btnBackToMain)
+        btnBack = findViewById(R.id.btnBackServer)
         
-        btnStart.setOnClickListener { startServer() }
+        btnStart.setOnClickListener { toggleServer() }
         btnBack.setOnClickListener { finish() }
         
         tvIp.text = "🌐 IP: ${getLocalIP()}"
@@ -60,45 +60,52 @@ class ServerActivity : AppCompatActivity() {
         val myService = "$packageName/.AccessibilityInputService"
         if (enabled == null || !enabled.contains(myService)) {
             runOnUiThread {
-                tvStatus.text = "⚠️ ACTIVEZ L'ACCESSIBILITÉ !"
+                tvStatus.text = "⚠️ Accessibilité requise"
                 btnStart.text = "🔧 ACTIVER L'ACCESSIBILITÉ"
                 btnStart.setOnClickListener {
                     startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                    Toast.makeText(this@ServerActivity, "Recherchez WiFiMouse → Activez", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@ServerActivity, 
+                        "Recherchez WiFiMouse → Activez → Revenez ici", 
+                        Toast.LENGTH_LONG).show()
                 }
             }
         }
     }
     
-    private fun startServer() {
+    private fun toggleServer() {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
         val myService = "$packageName/.AccessibilityInputService"
         if (enabled == null || !enabled.contains(myService)) {
-            Toast.makeText(this@ServerActivity, "Activez l'accessibilité d'abord !", Toast.LENGTH_LONG).show()
+            Toast.makeText(this@ServerActivity, "Activez d'abord l'accessibilité", Toast.LENGTH_LONG).show()
             return
         }
         
+        if (!isRunning) startServer() else stopServer()
+    }
+    
+    private fun startServer() {
         isRunning = true
         runOnUiThread {
-            btnStart.isEnabled = false
-            tvStatus.text = "🟡 DÉMARRAGE..."
-            tvReceived.text = "📋 Commandes reçues:\n"
+            btnStart.text = "⏹️ ARRÊTER LE SERVEUR"
+            tvStatus.text = "🟡 Démarrage..."
+            tvLog.text = "📋 Journal:\n"
         }
         
         scope.launch {
             try {
                 serverSocket = ServerSocket(PORT)
                 runOnUiThread {
-                    tvStatus.text = "🟡 EN ÉCOUTE — Port $PORT\nEn attente de connexion..."
+                    tvStatus.text = "✅ En attente de connexion sur le port $PORT"
+                    log("Serveur démarré sur $PORT")
                 }
                 
                 while (isRunning) {
                     try {
                         val client = serverSocket!!.accept()
-                        Log.d(TAG, "✅ Client connecté: ${client.inetAddress}")
-                        
+                        Log.d(TAG, "Client connecté: ${client.inetAddress}")
                         runOnUiThread {
-                            tvStatus.text = "✅ CONNECTÉ !\nDéplacez votre doigt sur le client."
+                            tvStatus.text = "✅ CONNECTÉ à ${client.inetAddress}"
+                            log("Client connecté: ${client.inetAddress}")
                         }
                         
                         clientSocket = client
@@ -109,34 +116,45 @@ class ServerActivity : AppCompatActivity() {
                             try {
                                 val line = input!!.readLine() ?: break
                                 if (line.isNotEmpty()) {
-                                    Log.d(TAG, "📥 COMMANDE: $line")
-                                    runOnUiThread {
-                                        tvReceived.append("$line\n")
-                                    }
+                                    Log.d(TAG, "REÇU: $line")
+                                    runOnUiThread { log("← $line") }
                                     InputDispatcher.handleCommand(line)
-                                    output?.println("OK:$line")
+                                    output?.println("OK")
                                     output?.flush()
                                 }
                             } catch (e: Exception) {
-                                Log.e(TAG, "❌ Lecture: ${e.message}")
+                                log("Erreur lecture: ${e.message}")
                                 break
                             }
                         }
                         
                         cleanup()
                         runOnUiThread {
-                            tvStatus.text = "🟡 Déconnecté\nEn attente..."
+                            tvStatus.text = "🟡 Déconnecté — En attente..."
+                            log("Client déconnecté")
                         }
                     } catch (e: Exception) {
                         if (isRunning) delay(500)
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Serveur: ${e.message}")
+                Log.e(TAG, "Erreur serveur: ${e.message}")
                 runOnUiThread {
-                    tvStatus.text = "❌ ERREUR: ${e.message}"
+                    tvStatus.text = "❌ Erreur: ${e.message}"
+                    log("ERREUR: ${e.message}")
                 }
             }
+        }
+    }
+    
+    private fun stopServer() {
+        isRunning = false
+        cleanup()
+        try { serverSocket?.close() } catch (e: Exception) {}
+        runOnUiThread {
+            btnStart.text = "▶️ DÉMARRER LE SERVEUR"
+            tvStatus.text = "⏹️ Serveur arrêté"
+            log("Serveur arrêté")
         }
     }
     
@@ -145,9 +163,14 @@ class ServerActivity : AppCompatActivity() {
         input = null; output = null; clientSocket = null
     }
     
+    private fun log(msg: String) {
+        runOnUiThread { tvLog.append("$msg\n") }
+    }
+    
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false; scope.cancel()
+        isRunning = false
+        scope.cancel()
         cleanup()
         try { serverSocket?.close() } catch (e: Exception) {}
     }
