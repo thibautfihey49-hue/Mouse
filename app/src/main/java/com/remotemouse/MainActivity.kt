@@ -16,6 +16,8 @@ import java.io.*
 import java.net.*
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "WiFiMouse"
@@ -34,14 +36,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvDebug: TextView
     
     private var serverSocket: ServerSocket? = null
-    private var clientSocket: Socket? = null
-    private var output: PrintWriter? = null
-    private var input: BufferedReader? = null
+    @Volatile private var clientSocket: Socket? = null
+    @Volatile private var output: PrintWriter? = null
+    @Volatile private var input: BufferedReader? = null
     private var udpSocket: DatagramSocket? = null
     
     private val isServerMode = AtomicBoolean(false)
     private val isRunning = AtomicBoolean(false)
     private val connected = AtomicBoolean(false)
+    private val connectionLock = ReentrantLock()
     
     private var serverJob: Job? = null
     private var clientJob: Job? = null
@@ -74,7 +77,7 @@ class MainActivity : AppCompatActivity() {
         btnServer.setOnClickListener { startServer() }
         btnScan.setOnClickListener { scanAndConnect() }
         btnDisconnect.setOnClickListener { disconnect() }
-        btnClick.setOnClickListener { sendCommand("CLICK") }
+        btnClick.setOnClickListener { sendCommandSafe("CLICK") }
         
         setupTouchpad()
         updateUI(false)
@@ -113,7 +116,7 @@ class MainActivity : AppCompatActivity() {
                     val dx = event.x - lastTouchX
                     val dy = event.y - lastTouchY
                     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                        sendCommand("MOVE|$dx|$dy")
+                        sendCommandSafe("MOVE|$dx|$dy")
                         cursorX += dx * 0.5f
                         cursorY += dy * 0.5f
                         cursorX = cursorX.coerceIn(10f, 600f)
@@ -199,10 +202,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupConnection(sock: Socket) {
-        clientSocket = sock
-        connected.set(true)
-        output = PrintWriter(BufferedWriter(OutputStreamWriter(sock.getOutputStream(), StandardCharsets.UTF_8)), true)
-        input = BufferedReader(InputStreamReader(sock.getInputStream(), StandardCharsets.UTF_8))
+        connectionLock.withLock {
+            clientSocket = sock
+            connected.set(true)
+            output = PrintWriter(BufferedWriter(OutputStreamWriter(sock.getOutputStream(), StandardCharsets.UTF_8)), true)
+            input = BufferedReader(InputStreamReader(sock.getInputStream(), StandardCharsets.UTF_8))
+        }
         debugLog("🔗 Connexion établie — flux initialisés")
     }
 
@@ -399,7 +404,7 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val line = input!!.readLine()
                         if (line == null) {
-                            debugLog("🔌 Connexion fermée")
+                            debugLog("🔌 Connexion fermée par l'autre appareil")
                             break
                         }
                         if (line.isNotEmpty()) {
@@ -420,40 +425,56 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendCommand(msg: String) {
-        if (!connected.get() || output == null) {
-            debugLog("❌ Pas connecté")
+    // ✅ FONCTION SÉCURISÉE — PLUS JAMAIS "Envoi null" !
+    private fun sendCommandSafe(msg: String): Boolean {
+        val currentOutput = output
+        val isConn = connected.get()
+        
+        debugLog("📤 Tentative envoi: '$msg' | connecté=$isConn | output=${if (currentOutput != null) "OK" else "NULL"}")
+        
+        if (!isConn || currentOutput == null) {
+            debugLog("❌ ENVOI ANNULÉ: Non connecté ou flux null")
             runOnUiThread {
-                Toast.makeText(this, "Pas connecté", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "⏳ En attente de connexion...", Toast.LENGTH_SHORT).show()
             }
-            return
+            return false
         }
-        try {
-            output!!.println(msg)
-            output!!.flush()
-            debugLog("📤 Envoyé: '$msg'")
-        } catch (e: Exception) {
-            debugLog("❌ Envoi échoué: ${e.message}")
-            runOnUiThread {
-                Toast.makeText(this, "Erreur envoi: ${e.message}", Toast.LENGTH_SHORT).show()
+        
+        return try {
+            currentOutput.println(msg)
+            currentOutput.flush()
+            if (currentOutput.checkError()) {
+                debugLog("❌ Erreur d'envoi (checkError=true)")
+                false
+            } else {
+                debugLog("✅ ENVOYÉ: '$msg'")
+                true
             }
-            disconnect()
+        } catch (e: Exception) {
+            debugLog("❌ EXCEPTION ENVOI: ${e.message}")
+            runOnUiThread {
+                Toast.makeText(this, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            false
         }
     }
 
     private fun cleanupConnection() {
-        connected.set(false)
-        readJob?.cancel()
-        try {
-            input?.close()
-            output?.close()
-            clientSocket?.close()
-        } catch (e: Exception) {
-            debugLog("⚠️ Erreur fermeture: ${e.message}")
+        connectionLock.withLock {
+            connected.set(false)
+            readJob?.cancel()
+            try {
+                input?.close()
+                output?.close()
+                clientSocket?.close()
+            } catch (e: Exception) {
+                debugLog("⚠️ Erreur fermeture: ${e.message}")
+            }
+            input = null
+            output = null
+            clientSocket = null
         }
-        input = null
-        output = null
-        clientSocket = null
+        debugLog("🧹 Connexion nettoyée — flux null maintenant")
     }
 
     private fun disconnect() {
