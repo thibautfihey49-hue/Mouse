@@ -58,7 +58,7 @@ object InputDispatcher {
         
         currentX = (currentX + dx).coerceIn(50f, displayWidth - 50f)
         currentY = (currentY + dy).coerceIn(50f, displayHeight - 50f)
-        Log.d(TAG, "📍 Déplacement vers: ($currentX, $currentY)")
+        Log.d(TAG, "📍 Déplacement: ($currentX, $currentY)")
         
         val path = Path()
         path.moveTo(currentX, currentY)
@@ -67,14 +67,8 @@ object InputDispatcher {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 1))
             .build()
         
-        svc.dispatchGesture(gesture, object : GestureDescription.GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                Log.d(TAG, "✅ Geste déplacement RÉUSSI")
-            }
-            override fun onCancelled(gestureDescription: GestureDescription?) {
-                Log.d(TAG, "⚠️ Geste déplacement ANNULÉ")
-            }
-        }, null)
+        // ✅ Sans callback = le plus simple et le plus fiable
+        svc.dispatchGesture(gesture, null, null)
     }
     
     private fun performClick() {
@@ -96,13 +90,7 @@ object InputDispatcher {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
             .build()
         
-        svc.dispatchGesture(gesture, object : GestureDescription.GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                Log.d(TAG, "✅ CLIC RÉUSSI")
-            }
-            override fun onCancelled(gestureDescription: GestureDescription?) {
-                Log.d(TAG, "⚠️ CLIC ANNULÉ")
-            }
-        }, null)
+        // ✅ Sans callback
+        svc.dispatchGesture(gesture, null, null)
     }
 }
