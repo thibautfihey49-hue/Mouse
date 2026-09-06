@@ -1,4 +1,3 @@
-// Vide — plugins déclarés dans settings.gradle
 tasks.register('clean', Delete) {
     delete rootProject.layout.buildDirectory
 }
