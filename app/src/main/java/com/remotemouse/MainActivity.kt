@@ -399,7 +399,7 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val line = input!!.readLine()
                         if (line == null) {
-                            debugLog("🔌 Ligne NULL = connexion fermée par l'autre appareil")
+                            debugLog("🔌 Connexion fermée")
                             break
                         }
                         if (line.isNotEmpty()) {
@@ -422,7 +422,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendCommand(msg: String) {
         if (!connected.get() || output == null) {
-            debugLog("❌ Pas connecté — impossible d'envoyer")
+            debugLog("❌ Pas connecté")
             runOnUiThread {
                 Toast.makeText(this, "Pas connecté", Toast.LENGTH_SHORT).show()
             }
