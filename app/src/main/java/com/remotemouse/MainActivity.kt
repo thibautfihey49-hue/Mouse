@@ -116,13 +116,19 @@ class MainActivity : AppCompatActivity() {
 
 class TouchpadView(context: android.content.Context, attrs: android.util.AttributeSet) : android.view.View(context, attrs) {
     var onTouchListener: ((dx: Float, dy: Float) -> Unit)? = null
-    private var lastX = 0f; private var lastY = 0f
+    private var lastX = 0f
+    private var lastY = 0f
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.action) {
             MotionEvent.ACTION_DOWN -> { lastX = e.x; lastY = e.y }
             MotionEvent.ACTION_MOVE -> {
-                val dx = e.x - lastX; val dy = e.y - lastY
-                if (abs(dx) > 2 || abs(dy) > 2) { onTouchListener?.invoke(dx, dy); lastX = e.x; lastY = e.y }
+                val dx = e.x - lastX
+                val dy = e.y - lastY
+                if (abs(dx) > 2 || abs(dy) > 2) {
+                    onTouchListener?.invoke(dx, dy)
+                    lastX = e.x
+                    lastY = e.y
+                }
             }
         }
         return true

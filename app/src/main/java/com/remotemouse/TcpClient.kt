@@ -57,7 +57,11 @@ class TcpClient(private val context: Context) {
             }
             override fun onStopDiscoveryFailed(t: String, e: Int) {}
         }
-        nsdManager?.discoverServices("_remotemouse._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        try {
+            nsdManager?.discoverServices("_remotemouse._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        } catch (e: Exception) {
+            Log.e("RemoteMouse", "❌ Erreur découverte: ${e.message}")
+        }
     }
 
     private fun resolveAndConnect(service: NsdServiceInfo) {
@@ -106,22 +110,30 @@ class TcpClient(private val context: Context) {
     }
 
     fun stopDiscovery() {
-        try { discoveryListener?.let { nsdManager?.stopServiceDiscovery(it) } } catch {}
+        try { discoveryListener?.let { nsdManager?.stopServiceDiscovery(it) } } catch (e: Exception) {}
         foundServices.clear()
     }
 
     fun sendCommand(cmd: String): Boolean {
         if (!isConnected || writer == null) return false
-        try { writer?.println(cmd); return true }
-        catch { isConnected = false; runOnUiThread { onDisconnected?.invoke() }; return false }
+        return try {
+            writer?.println(cmd)
+            true
+        } catch (e: Exception) {
+            isConnected = false
+            runOnUiThread { onDisconnected?.invoke() }
+            false
+        }
     }
 
     fun disconnect() {
-        isConnecting = false; isConnected = false
+        isConnecting = false
+        isConnected = false
         connectJob?.cancel()
-        try { writer?.close() } catch {}
-        try { socket?.close() } catch {}
-        writer = null; socket = null
+        try { writer?.close() } catch (e: Exception) {}
+        try { socket?.close() } catch (e: Exception) {}
+        writer = null
+        socket = null
         runOnUiThread { onDisconnected?.invoke() }
     }
 }

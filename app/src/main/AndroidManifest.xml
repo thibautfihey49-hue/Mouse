@@ -24,7 +24,6 @@
             </intent-filter>
         </activity>
         
-        <!-- ✅ Service dans son propre fichier — PAS de $ ! -->
         <service
             android:name=".AccessibilityInputService"
             android:exported="false"

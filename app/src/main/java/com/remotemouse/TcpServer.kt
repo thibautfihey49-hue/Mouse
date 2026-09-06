@@ -71,7 +71,7 @@ class TcpServer(private val port: Int = 8888) {
                     } catch (e: Exception) {
                         Log.e("RemoteMouse", "Erreur: ${e.message}")
                     } finally {
-                        try { clientSocket?.close() } catch {}
+                        try { clientSocket?.close() } catch (e: Exception) {}
                         clientSocket = null
                         if (isRunning) withContext(Dispatchers.Main) { onClientDisconnected?.invoke() }
                     }
@@ -86,9 +86,11 @@ class TcpServer(private val port: Int = 8888) {
     fun stop() {
         isRunning = false
         job?.cancel()
-        try { registrationListener?.let { nsdManager?.unregisterService(it) } } catch {}
-        try { clientSocket?.close() } catch {}
-        try { serverSocket?.close() } catch {}
-        clientSocket = null; serverSocket = null; nsdManager = null
+        try { registrationListener?.let { nsdManager?.unregisterService(it) } } catch (e: Exception) {}
+        try { clientSocket?.close() } catch (e: Exception) {}
+        try { serverSocket?.close() } catch (e: Exception) {}
+        clientSocket = null
+        serverSocket = null
+        nsdManager = null
     }
 }
