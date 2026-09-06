@@ -13,10 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
-import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.ListView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -31,7 +28,7 @@ import java.io.OutputStreamWriter
 import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var tvStatus: TextView
+    private lateinit var tvStatus: android.widget.TextView
     private lateinit var btnServer: Button
     private lateinit var btnConnect: Button
     private lateinit var touchpad: TouchpadView
@@ -78,10 +75,6 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Bluetooth non disponible", Toast.LENGTH_SHORT).show()
                 finish()
             }
-            !bluetoothAdapter!!.isEnabled -> {
-                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                startActivityForResult(enableBtIntent, 1001)
-            }
             else -> checkPermissions()
         }
     }
@@ -103,7 +96,33 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
-        ready()
+        checkBluetoothEnabled()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 123) {
+            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                checkBluetoothEnabled()
+            } else {
+                Toast.makeText(this, "Permissions Bluetooth requises", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+    }
+
+    private fun checkBluetoothEnabled() {
+        if (bluetoothAdapter?.isEnabled == true) {
+            ready()
+        } else {
+            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            startActivityForResult(enableBtIntent, 1001)
+        }
     }
 
     private fun ready() {
@@ -271,8 +290,9 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 1001) {
-            if (resultCode == RESULT_OK) checkPermissions()
-            else {
+            if (resultCode == RESULT_OK) {
+                ready()
+            } else {
                 Toast.makeText(this, "Bluetooth requis", Toast.LENGTH_SHORT).show()
                 finish()
             }
