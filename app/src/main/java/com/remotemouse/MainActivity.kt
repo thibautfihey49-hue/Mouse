@@ -34,9 +34,11 @@ class MainActivity : AppCompatActivity() {
     
     private var btAdapter: BluetoothAdapter? = null
     private var socket: BluetoothSocket? = null
-    private var writer: PrintWriter? = null
+    private var outputStream: OutputStream? = null
+    private var inputStream: InputStream? = null
     private var isServer = false
     private var job: Job? = null
+    private var readingJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     
     private var lastTouchX = 0f
@@ -59,7 +61,7 @@ class MainActivity : AppCompatActivity() {
         btnServer.setOnClickListener { startServer() }
         btnConnect.setOnClickListener { showDevices() }
         btnDisconnect.setOnClickListener { disconnect() }
-        btnClick.setOnClickListener { send("CLICK") }
+        btnClick.setOnClickListener { sendCommand("CLICK\n") }
         
         setupTouchpad()
         initBluetooth()
@@ -76,8 +78,7 @@ class MainActivity : AppCompatActivity() {
                     val dx = event.x - lastTouchX
                     val dy = event.y - lastTouchY
                     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                        send("MOVE|$dx|$dy")
-                        // Curseur visible LOCALEMENT
+                        sendCommand("MOVE|$dx|$dy\n")
                         cursorX += dx * 0.5f
                         cursorY += dy * 0.5f
                         cursorX = cursorX.coerceIn(10f, 600f)
@@ -156,32 +157,76 @@ class MainActivity : AppCompatActivity() {
                     checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != android.content.pm.PackageManager.PERMISSION_GRANTED)
                     return@launch
                 
-                val server = btAdapter?.listenUsingRfcommWithServiceRecord("Mouse", BT_UUID)
-                val clientSocket = server?.accept()
-                server?.close()
+                val serverSocket = btAdapter?.listenUsingRfcommWithServiceRecord("Mouse", BT_UUID)
+                Log.d(TAG, "Serveur: en attente de connexion...")
+                
+                val clientSocket = serverSocket?.accept()
+                Log.d(TAG, "Serveur: connexion acceptée !")
+                serverSocket?.close()
                 
                 clientSocket?.let {
                     socket = it
                     val device = it.remoteDevice
+                    outputStream = it.outputStream
+                    inputStream = it.inputStream
+                    
                     Log.d(TAG, "Connecté à: ${device.name}")
                     
                     runOnUiThread {
-                        tvStatus.text = "✅ CONNECTÉ À ${device.name}\n\n🖱️ Utilise le pavé tactile !"
+                        tvStatus.text = "✅ CONNECTÉ À ${device.name}\n\n🖱️ Déplacez votre doigt !"
                         updateUI(true, false)
                     }
                     
-                    // Lire les commandes
-                    val reader = BufferedReader(InputStreamReader(it.inputStream))
-                    while (true) {
-                        val line = reader.readLine() ?: break
-                        Log.d(TAG, "Commande reçue: $line")
-                        InputDispatcher.handleCommand(line)
-                    }
+                    startReading()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Serveur erreur: ${e.message}")
+                Log.e(TAG, "Serveur erreur: ${e.message}", e)
                 runOnUiThread {
                     tvStatus.text = "❌ Erreur: ${e.message}"
+                    resetUI()
+                }
+            }
+        }
+    }
+
+    private fun startReading() {
+        readingJob?.cancel()
+        readingJob = scope.launch {
+            try {
+                val buffer = ByteArray(1024)
+                var accumulated = ""
+                
+                while (isActive && socket?.isConnected == true) {
+                    val bytes = inputStream?.read(buffer) ?: -1
+                    
+                    if (bytes == -1) {
+                        Log.w(TAG, "Lecture retourne -1 = socket fermée")
+                        break
+                    }
+                    
+                    if (bytes > 0) {
+                        val chunk = String(buffer, 0, bytes)
+                        accumulated += chunk
+                        Log.d(TAG, "Reçu brut: '$chunk'")
+                        
+                        while (accumulated.contains("\n")) {
+                            val lineEnd = accumulated.indexOf("\n")
+                            val line = accumulated.substring(0, lineEnd).trim()
+                            accumulated = accumulated.substring(lineEnd + 1)
+                            
+                            if (line.isNotEmpty()) {
+                                Log.d(TAG, "→ TRAITEMENT: '$line'")
+                                InputDispatcher.handleCommand(line)
+                            }
+                        }
+                    }
+                }
+                Log.d(TAG, "Boucle de lecture terminée")
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur lecture: ${e.message}", e)
+            } finally {
+                runOnUiThread {
+                    tvStatus.text = "❌ Connexion perdue"
                     resetUI()
                 }
             }
@@ -200,7 +245,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        val names = devices.map { it.name }.toTypedArray()
+        val names = devices.map { "${it.name} (${it.address})" }.toTypedArray()
         val list = devices.toList()
         AlertDialog.Builder(this)
             .setTitle("Choisis un appareil")
@@ -211,7 +256,7 @@ class MainActivity : AppCompatActivity() {
     private fun connectTo(device: BluetoothDevice) {
         isServer = false
         updateUI(true, true)
-        tvStatus.text = "🔌 Connexion..."
+        tvStatus.text = "🔌 Connexion à ${device.name}..."
         
         scope.launch {
             try {
@@ -221,14 +266,20 @@ class MainActivity : AppCompatActivity() {
                 
                 socket = device.createRfcommSocketToServiceRecord(BT_UUID)
                 socket?.connect()
-                writer = PrintWriter(OutputStreamWriter(socket?.outputStream, "UTF-8"), true)
+                
+                outputStream = socket?.outputStream
+                inputStream = socket?.inputStream
+                
+                Log.d(TAG, "Client: connecté ! Flux prêts")
                 
                 runOnUiThread {
-                    tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplace ton doigt sur le pavé"
+                    tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplacez votre doigt sur le pavé"
                     updateUI(true, false)
                 }
+                
+                startReading()
             } catch (e: Exception) {
-                Log.e(TAG, "Connexion échouée: ${e.message}")
+                Log.e(TAG, "Connexion échouée: ${e.message}", e)
                 runOnUiThread {
                     tvStatus.text = "❌ ÉCHEC: ${e.message}"
                     resetUI()
@@ -237,22 +288,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun send(cmd: String) {
-        if (writer == null || socket?.isConnected != true) {
+    private fun sendCommand(cmd: String) {
+        if (outputStream == null || socket?.isConnected != true) {
             Toast.makeText(this, "Pas connecté", Toast.LENGTH_SHORT).show()
             return
         }
-        writer?.println(cmd)
-        Log.d(TAG, "Envoyé: $cmd")
+        try {
+            outputStream?.write(cmd.toByteArray(Charsets.UTF_8))
+            outputStream?.flush()
+            Log.d(TAG, "Envoyé: ${cmd.trim()}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Envoi échoué: ${e.message}")
+            disconnect()
+        }
     }
 
     private fun disconnect() {
+        readingJob?.cancel()
+        job?.cancel()
         scope.launch {
             try {
-                writer?.close()
+                inputStream?.close()
+                outputStream?.close()
                 socket?.close()
             } catch (e: Exception) {}
-            writer = null
+            inputStream = null
+            outputStream = null
             socket = null
             runOnUiThread {
                 tvStatus.text = "🔌 Déconnecté"
@@ -261,7 +322,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun resetUI() { updateUI(false, false); isServer = false; job?.cancel() }
+    private fun resetUI() { updateUI(false, false); isServer = false; job?.cancel(); readingJob?.cancel() }
     private fun updateUI(connected: Boolean, connecting: Boolean = false) {
         btnServer.isEnabled = !connected && !connecting
         btnConnect.isEnabled = !connected && !connecting
@@ -282,7 +343,12 @@ class MainActivity : AppCompatActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
+        readingJob?.cancel()
         job?.cancel()
-        try { socket?.close() } catch (e: Exception) {}
+        try {
+            inputStream?.close()
+            outputStream?.close()
+            socket?.close()
+        } catch (e: Exception) {}
     }
 }
