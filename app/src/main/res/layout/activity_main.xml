@@ -6,8 +6,7 @@
     android:padding="16dp"
     android:background="#F5F5F5">
 
-    <TextView
-        android:id="@+id/tvStatus"
+    <TextView android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Bienvenue sur RemoteMouse"
@@ -18,96 +17,50 @@
         android:gravity="center"
         android:layout_marginBottom="16dp"/>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="📱 1. Sur l'appareil à contrôler :"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:textSize="14sp" android:textStyle="bold" android:layout_marginBottom="8dp"/>
 
-    <Button
-        android:id="@+id/btnStartServer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="▶️ Démarrer le serveur"
-        android:background="#4CAF50"
-        android:textColor="#FFFFFF"
-        android:paddingVertical="12dp"
-        android:layout_marginBottom="24dp"/>
+    <Button android:id="@+id/btnStartServer"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="▶️ DÉMARRER LE SERVEUR"
+        android:background="#4CAF50" android:textColor="#FFFFFF"
+        android:paddingVertical="12dp" android:layout_marginBottom="24dp"/>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="📲 2. Sur l'appareil qui contrôle :"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:textSize="14sp" android:textStyle="bold" android:layout_marginBottom="8dp"/>
 
-    <Button
-        android:id="@+id/btnConnect"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🔍 Rechercher un appareil"
-        android:background="#2196F3"
-        android:textColor="#FFFFFF"
-        android:paddingVertical="12dp"
-        android:layout_marginBottom="8dp"/>
+    <Button android:id="@+id/btnConnect"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="🔍 RECHERCHER UN APPAREIL"
+        android:background="#2196F3" android:textColor="#FFFFFF"
+        android:paddingVertical="12dp" android:layout_marginBottom="8dp"/>
 
-    <Button
-        android:id="@+id/btnDisconnect"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🔌 Déconnecter"
-        android:background="#F44336"
-        android:textColor="#FFFFFF"
-        android:paddingVertical="10dp"
-        android:layout_marginBottom="24dp"
+    <Button android:id="@+id/btnDisconnect"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="🔌 DÉCONNECTER"
+        android:background="#F44336" android:textColor="#FFFFFF"
+        android:paddingVertical="10dp" android:layout_marginBottom="24dp"
         android:enabled="false"/>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="🖱️ Pavé tactile — Déplacez votre doigt"
-        android:textSize="14sp"
-        android:layout_marginBottom="8dp"/>
+        android:textSize="14sp" android:layout_marginBottom="8dp"/>
 
-    <com.remotemouse.TouchpadView
-        android:id="@+id/touchpad"
-        android:layout_width="match_parent"
-        android:layout_height="150dp"
-        android:background="#E0E0E0"
-        android:layout_marginBottom="16dp"/>
+    <com.remotemouse.TouchpadView android:id="@+id/touchpad"
+        android:layout_width="match_parent" android:layout_height="150dp"
+        android:background="#E0E0E0" android:layout_marginBottom="16dp"/>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnLeftClick"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="◀ Clic Gauche"
-            android:layout_marginEnd="4dp"/>
-
-        <Button
-            android:id="@+id/btnRightClick"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Clic Droit ▶"
-            android:layout_marginStart="4dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <Button android:id="@+id/btnLeftClick" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="◀ CLIC GAUCHE" android:layout_marginEnd="4dp"/>
+        <Button android:id="@+id/btnRightClick" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="CLIC DROIT ▶" android:layout_marginStart="4dp"/>
     </LinearLayout>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="💡 Les 2 appareils doivent être sur le MÊME Wi-Fi"
-        android:textSize="12sp"
-        android:gravity="center"
-        android:layout_marginTop="16dp"
-        android:textColor="#666666"/>
-
+        android:textSize="12sp" android:gravity="center"
+        android:layout_marginTop="16dp" android:textColor="#666666"/>
 </LinearLayout>

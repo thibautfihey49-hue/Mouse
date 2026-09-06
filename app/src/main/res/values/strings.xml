@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RemoteMouse</string>
-    <string name="accessibility_service_desc">Contrôle à distance souris/clavier</string>
+    <string name="accessibility_service_desc">Permet à RemoteMouse de contrôler cet appareil depuis un autre téléphone.</string>
 </resources>

@@ -4,43 +4,56 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.os.Build
-import android.view.accessibility.AccessibilityEvent
-import androidx.annotation.RequiresApi
+import android.util.Log
 
-@RequiresApi(Build.VERSION_CODES.N)
 object InputDispatcher {
-    var service: AccessibilityInputService? = null
-    private const val SCREEN_WIDTH = 1080f
-    private const val SCREEN_HEIGHT = 2340f
-    private var lastX = SCREEN_WIDTH / 2
-    private var lastY = SCREEN_HEIGHT / 2
+    private var service: AccessibilityInputService? = null
+    
+    fun setService(svc: AccessibilityInputService) { service = svc }
 
-    fun dispatchCommand(command: String) {
-        val parts = command.split("|")
+    fun dispatchCommand(cmd: String) {
+        val parts = cmd.split("|")
+        if (parts.isEmpty()) return
         when (parts[0]) {
-            "MOVE" -> {
-                val dx = parts[1].toFloatOrNull() ?: 0f
-                val dy = parts[2].toFloatOrNull() ?: 0f
-                lastX = (lastX + dx * 2).coerceIn(50f, SCREEN_WIDTH - 50f)
-                lastY = (lastY + dy * 2).coerceIn(50f, SCREEN_HEIGHT - 50f)
-            }
+            "MOVE" -> performMove(parts.getOrNull(1)?.toFloatOrNull() ?: 0f, parts.getOrNull(2)?.toFloatOrNull() ?: 0f)
             "CLICK" -> performClick()
-            "RIGHT_CLICK" -> performClick()
+            "RIGHT_CLICK" -> performRightClick()
         }
     }
 
+    private fun performMove(dx: Float, dy: Float) {
+        val svc = service ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+        val dm = svc.resources.displayMetrics
+        val centerX = dm.widthPixels / 2f
+        val centerY = dm.heightPixels / 2f
+        val targetX = (centerX + dx * 1.5f).coerceIn(50f, dm.widthPixels - 50f)
+        val targetY = (centerY + dy * 1.5f).coerceIn(50f, dm.heightPixels - 50f)
+        val path = Path().apply { moveTo(centerX, centerY); lineTo(targetX, targetY) }
+        svc.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 30)).build(), null, null)
+    }
+
     private fun performClick() {
-        val path = Path().apply { moveTo(lastX, lastY) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 100))
-            .build()
-        service?.dispatchGesture(gesture, null, null)
+        val svc = service ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+        val dm = svc.resources.displayMetrics
+        val x = dm.widthPixels / 2f
+        val y = dm.heightPixels / 2f
+        val path = Path().apply { moveTo(x, y) }
+        svc.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 10)).build(), null, null)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            svc.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 10, 10)).build(), null, null)
+        }, 50)
+    }
+
+    private fun performRightClick() {
+        val svc = service ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) svc?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
     }
 
     class AccessibilityInputService : AccessibilityService() {
-        override fun onCreate() { super.onCreate(); service = this }
-        override fun onDestroy() { super.onDestroy(); if (service === this) service = null }
-        override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+        override fun onCreate() { super.onCreate(); setService(this) }
+        override fun onAccessibilityEvent(e: android.view.accessibility.AccessibilityEvent?) {}
         override fun onInterrupt() {}
     }
 }

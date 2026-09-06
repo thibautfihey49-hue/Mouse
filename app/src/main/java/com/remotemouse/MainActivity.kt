@@ -27,7 +27,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         tvStatus = findViewById(R.id.tvStatus)
         btnStartServer = findViewById(R.id.btnStartServer)
         btnConnect = findViewById(R.id.btnConnect)
@@ -35,120 +34,76 @@ class MainActivity : AppCompatActivity() {
         btnLeftClick = findViewById(R.id.btnLeftClick)
         btnRightClick = findViewById(R.id.btnRightClick)
         btnDisconnect = findViewById(R.id.btnDisconnect)
-        
         client = TcpClient(this)
-
-        checkAccessibilityPermission()
         setupListeners()
     }
 
     private fun setupListeners() {
-        btnStartServer.setOnClickListener {
-            if (!isServerMode) startServer() else stopServer()
-        }
-
-        btnConnect.setOnClickListener {
-            if (!client.isConnected) {
-                startClientDiscovery()
-            }
-        }
-
-        btnDisconnect.setOnClickListener {
-            client.disconnect()
-            updateUI()
-            tvStatus.text = "🔌 Déconnecté"
-        }
-
-        touchpad.onTouchListener = { dx, dy ->
-            if (client.isConnected) client.sendCommand("MOVE|$dx|$dy")
-        }
-
-        btnLeftClick.setOnClickListener {
-            if (client.isConnected) client.sendCommand("CLICK")
-        }
-        btnRightClick.setOnClickListener {
-            if (client.isConnected) client.sendCommand("RIGHT_CLICK")
-        }
+        btnStartServer.setOnClickListener { if (!isServerMode) startServer() else stopServer() }
+        btnConnect.setOnClickListener { if (!client.isConnected && !client.isConnecting) startDiscovery() }
+        btnDisconnect.setOnClickListener { client.disconnect(); updateUI(); tvStatus.text = "🔌 Déconnecté" }
+        
+        touchpad.onTouchListener = { dx, dy -> if (client.isConnected) client.sendCommand("MOVE|$dx|$dy") }
+        btnLeftClick.setOnClickListener { if (client.isConnected) client.sendCommand("CLICK") }
+        btnRightClick.setOnClickListener { if (client.isConnected) client.sendCommand("RIGHT_CLICK") }
 
         client.onDeviceFound = { devices ->
-            if (devices.isEmpty()) {
-                tvStatus.text = "🔍 Aucun appareil trouvé\nMême Wi-Fi ?"
-            } else if (devices.size == 1) {
-                tvStatus.text = "✅ ${devices[0]} détecté... Connexion automatique !"
-            } else {
-                tvStatus.text = "✅ ${devices.size} appareils détectés"
-            }
+            tvStatus.text = if (devices.isEmpty()) "🔍 Recherche en cours..." else "✅ ${devices.first()} détecté... Connexion..."
         }
+        client.onConnected = { tvStatus.text = "✅ CONNECTÉ ! Utilisez le pavé"; updateUI() }
+        client.onConnectionFailed = { err -> tvStatus.text = "❌ $err\n• Même Wi-Fi ?\n• Serveur démarré ?"; btnConnect.isEnabled = true }
+        client.onDisconnected = { tvStatus.text = "🔌 Déconnecté"; updateUI() }
 
-        client.onConnected = {
-            tvStatus.text = "✅ CONNECTÉ ! Utilisez le pavé"
-            updateUI()
-        }
-
-        client.onConnectionFailed = {
-            tvStatus.text = "❌ Échec de la connexion\nRéessayez..."
-            btnConnect.isEnabled = true
-        }
-
-        server.onCommandReceived = { command ->
+        server.onClientConnected = { tvStatus.text = "✅ Client connecté ! Contrôlez depuis l'autre téléphone" }
+        server.onClientDisconnected = { tvStatus.text = "⏹️ En attente d'un client..." }
+        server.onCommandReceived = { cmd ->
             runOnUiThread {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    InputDispatcher.dispatchCommand(command)
-                }
-                tvStatus.text = "✅ Prêt — Commande reçue"
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) InputDispatcher.dispatchCommand(cmd)
             }
         }
     }
 
     private fun startServer() {
         if (!isAccessibilityEnabled()) {
-            Toast.makeText(this, "⚠️ Activez l'accessibilité pour RemoteMouse", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "👉 Activez l'accessibilité pour RemoteMouse", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
         isServerMode = true
         server.start(this)
-        btnStartServer.text = "🛑 Arrêter le serveur"
+        btnStartServer.text = "🛑 ARRÊTER LE SERVEUR"
         btnConnect.isEnabled = false
-        btnDisconnect.isEnabled = false
-        tvStatus.text = "✅ SERVEUR ACTIF\nEn attente de connexion..."
+        tvStatus.text = "✅ SERVEUR EN ÉCOUTE\nEn attente de connexion..."
     }
 
     private fun stopServer() {
         isServerMode = false
         server.stop()
-        btnStartServer.text = "▶️ Démarrer le serveur"
+        btnStartServer.text = "▶️ DÉMARRER LE SERVEUR"
         btnConnect.isEnabled = true
-        btnDisconnect.isEnabled = false
         tvStatus.text = "Serveur arrêté"
     }
 
-    private fun startClientDiscovery() {
+    private fun startDiscovery() {
         tvStatus.text = "🔍 Recherche d'appareils..."
         btnConnect.isEnabled = false
         client.startDiscovery()
-        
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        android.os.Handler(mainLooper).postDelayed({
             if (!client.isConnected) {
                 client.stopDiscovery()
-                tvStatus.text = "⚠️ Aucun appareil trouvé\n• Même Wi-Fi ?\n• Serveur démarré ?"
                 btnConnect.isEnabled = true
+                if (tvStatus.text.startsWith("🔍 Recherche")) {
+                    tvStatus.text = "⏱️ Aucun appareil trouvé\n• Même Wi-Fi ?\n• Serveur démarré ?"
+                }
             }
         }, 15000)
     }
 
     private fun updateUI() {
         val connected = client.isConnected
-        btnConnect.isEnabled = !connected
+        btnConnect.isEnabled = !connected && !isServerMode
         btnDisconnect.isEnabled = connected
         btnStartServer.isEnabled = !connected
-    }
-
-    private fun checkAccessibilityPermission() {
-        if (!isAccessibilityEnabled()) {
-            Toast.makeText(this, "👉 Activez l'accessibilité pour RemoteMouse", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }
     }
 
     private fun isAccessibilityEnabled(): Boolean {
@@ -156,33 +111,18 @@ class MainActivity : AppCompatActivity() {
         return enabled?.contains(packageName) == true
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        server.stop()
-        client.disconnect()
-    }
+    override fun onDestroy() { super.onDestroy(); server.stop(); client.disconnect() }
 }
 
-class TouchpadView(context: android.content.Context, attrs: android.util.AttributeSet) :
-    android.view.View(context, attrs) {
+class TouchpadView(context: android.content.Context, attrs: android.util.AttributeSet) : android.view.View(context, attrs) {
     var onTouchListener: ((dx: Float, dy: Float) -> Unit)? = null
-    private var lastX = 0f
-    private var lastY = 0f
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                lastX = event.x
-                lastY = event.y
-            }
+    private var lastX = 0f; private var lastY = 0f
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        when (e.action) {
+            MotionEvent.ACTION_DOWN -> { lastX = e.x; lastY = e.y }
             MotionEvent.ACTION_MOVE -> {
-                val dx = event.x - lastX
-                val dy = event.y - lastY
-                if (abs(dx) > 2 || abs(dy) > 2) {
-                    onTouchListener?.invoke(dx, dy)
-                    lastX = event.x
-                    lastY = event.y
-                }
+                val dx = e.x - lastX; val dy = e.y - lastY
+                if (abs(dx) > 2 || abs(dy) > 2) { onTouchListener?.invoke(dx, dy); lastX = e.x; lastY = e.y }
             }
         }
         return true
