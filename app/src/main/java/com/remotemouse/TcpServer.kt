@@ -42,7 +42,6 @@ class TcpServer(private val port: Int = 8888) {
                     this.port = localPort
                 }
                 
-                // ✅ NOMS DE MÉTHODES EXACTS DE L'INTERFACE ANDROID
                 registrationListener = object : NsdManager.RegistrationListener {
                     override fun onServiceRegistered(service: NsdServiceInfo) {
                         Log.d("RemoteMouse", "📢 Appareil visible : ${service.serviceName}")

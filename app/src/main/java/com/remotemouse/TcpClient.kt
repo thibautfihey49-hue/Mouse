@@ -36,7 +36,11 @@ class TcpClient(private val context: Context) {
                         foundServices.add(service)
                         val deviceNames = foundServices.map { it.serviceName }
                         Log.d("RemoteMouse", "✅ Appareil trouvé : ${service.serviceName}")
-                        onDeviceFound?.invoke(deviceNames)
+                        
+                        // ✅ PASSAGE PAR LE THREAD PRINCIPAL
+                        (context as? android.app.Activity)?.runOnUiThread {
+                            onDeviceFound?.invoke(deviceNames)
+                        }
                         
                         if (foundServices.size == 1) {
                             connectToService(service)
@@ -46,7 +50,10 @@ class TcpClient(private val context: Context) {
             }
             override fun onServiceLost(service: NsdServiceInfo) {
                 foundServices.removeAll { it.serviceName == service.serviceName }
-                onDeviceFound?.invoke(foundServices.map { it.serviceName })
+                val deviceNames = foundServices.map { it.serviceName }
+                (context as? android.app.Activity)?.runOnUiThread {
+                    onDeviceFound?.invoke(deviceNames)
+                }
             }
             override fun onDiscoveryStopped(serviceType: String) {}
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {

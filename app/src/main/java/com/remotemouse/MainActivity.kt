@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
 
         client.onConnectionFailed = {
             tvStatus.text = "❌ Échec de la connexion\nRéessayez..."
+            btnConnect.isEnabled = true
         }
 
         server.onCommandReceived = { command ->
