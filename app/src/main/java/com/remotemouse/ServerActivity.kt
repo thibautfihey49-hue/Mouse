@@ -21,6 +21,7 @@ class ServerActivity : AppCompatActivity() {
     
     private lateinit var tvStatus: TextView
     private lateinit var tvIp: TextView
+    private lateinit var tvReceived: TextView
     private lateinit var btnStart: Button
     private lateinit var btnBack: Button
     
@@ -37,6 +38,7 @@ class ServerActivity : AppCompatActivity() {
         
         tvStatus = findViewById(R.id.tvServerStatus)
         tvIp = findViewById(R.id.tvServerIp)
+        tvReceived = findViewById(R.id.tvReceivedCommands)
         btnStart = findViewById(R.id.btnStartServer)
         btnBack = findViewById(R.id.btnBackToMain)
         
@@ -55,9 +57,10 @@ class ServerActivity : AppCompatActivity() {
     
     private fun checkAccessibility() {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        if (enabled?.contains(packageName) != true) {
-            tvStatus.text = "⚠️ Activez l'accessibilité d'abord !"
-            btnStart.text = "ACTIVER L'ACCESSIBILITÉ"
+        val myService = "$packageName/.AccessibilityInputService"
+        if (enabled == null || !enabled.contains(myService)) {
+            tvStatus.text = "⚠️ ACTIVEZ L'ACCESSIBILITÉ !"
+            btnStart.text = "🔧 ACTIVER L'ACCESSIBILITÉ"
             btnStart.setOnClickListener {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 Toast.makeText(this@ServerActivity, "Recherchez WiFiMouse → Activez", Toast.LENGTH_LONG).show()
@@ -67,14 +70,16 @@ class ServerActivity : AppCompatActivity() {
     
     private fun startServer() {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        if (enabled?.contains(packageName) != true) {
-            Toast.makeText(this@ServerActivity, "Activez l'accessibilité d'abord", Toast.LENGTH_LONG).show()
+        val myService = "$packageName/.AccessibilityInputService"
+        if (enabled == null || !enabled.contains(myService)) {
+            Toast.makeText(this@ServerActivity, "Activez l'accessibilité d'abord !", Toast.LENGTH_LONG).show()
             return
         }
         
         isRunning = true
         btnStart.isEnabled = false
         tvStatus.text = "🟡 DÉMARRAGE..."
+        tvReceived.text = "📋 Commandes reçues:\n"
         
         scope.launch {
             try {
@@ -86,10 +91,10 @@ class ServerActivity : AppCompatActivity() {
                 while (isRunning) {
                     try {
                         val client = serverSocket!!.accept()
-                        Log.d(TAG, "✅ Client: ${client.inetAddress}")
+                        Log.d(TAG, "✅ Client connecté: ${client.inetAddress}")
                         
                         runOnUiThread {
-                            tvStatus.text = "✅ CONNECTÉ !\nEn attente des commandes..."
+                            tvStatus.text = "✅ CONNECTÉ !\nDéplacez votre doigt sur le client."
                         }
                         
                         clientSocket = client
@@ -100,12 +105,18 @@ class ServerActivity : AppCompatActivity() {
                             try {
                                 val line = input!!.readLine() ?: break
                                 if (line.isNotEmpty()) {
-                                    Log.d(TAG, "📥 $line")
+                                    Log.d(TAG, "📥 COMMANDE: $line")
+                                    runOnUiThread {
+                                        tvReceived.append("$line\n")
+                                    }
                                     InputDispatcher.handleCommand(line)
                                     output?.println("OK:$line")
                                     output?.flush()
                                 }
-                            } catch (e: Exception) { break }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ Lecture: ${e.message}")
+                                break
+                            }
                         }
                         
                         cleanup()
@@ -117,7 +128,7 @@ class ServerActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ ${e.message}")
+                Log.e(TAG, "❌ Serveur: ${e.message}")
                 runOnUiThread {
                     tvStatus.text = "❌ ERREUR: ${e.message}"
                 }

@@ -21,7 +21,7 @@
         android:textSize="20sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:layout_marginBottom="20dp"/>
+        android:layout_marginBottom="10dp"/>
 
     <TextView
         android:id="@+id/tvServerIp"
@@ -38,18 +38,37 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="✅ Prêt"
-        android:textSize="15sp"
-        android:padding="12dp"
+        android:textSize="14sp"
+        android:padding="10dp"
         android:background="#E8F5E9"
-        android:layout_marginBottom="20dp"/>
+        android:layout_marginBottom="10dp"/>
 
     <Button
         android:id="@+id/btnStartServer"
         android:layout_width="match_parent"
-        android:layout_height="70dp"
+        android:layout_height="60dp"
         android:text="▶️ DÉMARRER LE SERVEUR"
         android:background="#2196F3"
         android:textColor="#FFFFFF"
-        android:textSize="18sp"/>
+        android:textSize="16sp"
+        android:layout_marginBottom="10dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📋 Commandes reçues:"
+        android:textSize="12sp"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/tvReceivedCommands"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text=""
+        android:textSize="10sp"
+        android:padding="8dp"
+        android:background="#EEEEEE"
+        android:fontFamily="monospace"/>
 
 </LinearLayout>
