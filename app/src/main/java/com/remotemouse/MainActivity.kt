@@ -24,6 +24,8 @@ class MainActivity : AppCompatActivity() {
     private val TCP_PORT = 8888
     private val UDP_PORT = 8889
     private val BROADCAST_MSG = "WIFIMOUSE_SERVER_DISCOVER"
+    private val PING_MSG = "PING"
+    private val PONG_MSG = "PONG"
     
     private lateinit var tvStatus: TextView
     private lateinit var btnServer: Button
@@ -49,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var serverJob: Job? = null
     private var clientJob: Job? = null
     private var readJob: Job? = null
+    private var pingJob: Job? = null
     private var udpJob: Job? = null
     
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -171,22 +174,12 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         setupConnection(client)
-                        
-                        // ✅ LE SERVEUR DOIT LIRE EN PERMANENCE — SINON LA CONNEXION SE COUPE !
                         startReadingLoop()
+                        startPingLoop()
                         
-                        // ✅ GARDE LA CONNEXION OUVERTE TANT QUE LE CLIENT EST LÀ
+                        // GARDE LA CONNEXION OUVERTE
                         while (isRunning.get() && connected.get() && !client.isClosed) {
-                            delay(500)
-                            // Envoyer un PING pour garder la connexion vive
-                            if (connected.get() && output != null) {
-                                try {
-                                    output!!.flush()
-                                } catch (e: Exception) {
-                                    debugLog("⚠️ Flush échoué: ${e.message}")
-                                    break
-                                }
-                            }
+                            delay(1000)
                         }
                         
                         if (isRunning.get()) {
@@ -386,11 +379,10 @@ class MainActivity : AppCompatActivity() {
             }
             
             startReadingLoop()
+            startPingLoop()
             
-            // ✅ GARDE LA CONNEXION OUVERTE
             while (isRunning.get() && connected.get() && !sock.isClosed) {
-                delay(500)
-                output?.flush()
+                delay(1000)
             }
             
             if (isRunning.get()) {
@@ -422,8 +414,19 @@ class MainActivity : AppCompatActivity() {
                             break
                         }
                         if (line.isNotEmpty()) {
-                            debugLog("📥 Commande reçue: '$line'")
-                            InputDispatcher.handleCommand(line)
+                            when (line) {
+                                PING_MSG -> {
+                                    debugLog("📥 PING reçu → PONG envoyé")
+                                    sendCommandSafe(PONG_MSG)
+                                }
+                                PONG_MSG -> {
+                                    debugLog("📥 PONG reçu")
+                                }
+                                else -> {
+                                    debugLog("📥 Commande reçue: '$line'")
+                                    InputDispatcher.handleCommand(line)
+                                }
+                            }
                         }
                     } catch (e: Exception) {
                         debugLog("⚠️ Erreur lecture: ${e.message}")
@@ -439,6 +442,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun startPingLoop() {
+        pingJob?.cancel()
+        pingJob = scope.launch {
+            while (isRunning.get() && connected.get()) {
+                delay(3000)
+                if (connected.get() && isServerMode.get()) {
+                    sendCommandSafe(PING_MSG)
+                }
+            }
+        }
+    }
+
     private fun sendCommandSafe(msg: String): Boolean {
         val currentOutput = output
         val isConn = connected.get()
@@ -447,17 +462,15 @@ class MainActivity : AppCompatActivity() {
         
         if (!isConn || currentOutput == null) {
             debugLog("❌ ANNULÉ: Non connecté")
-            runOnUiThread {
-                Toast.makeText(this, "⏳ En attente de connexion...", Toast.LENGTH_SHORT).show()
-            }
             return false
         }
         
         return try {
             currentOutput.println(msg)
-            val error = currentOutput.checkError()
-            if (error) {
-                debugLog("❌ ERREUR: checkError=true — Socket coupé")
+            currentOutput.flush()  // ✅ TRÈS IMPORTANT : Force l'envoi IMMÉDIAT
+            
+            if (currentOutput.checkError()) {
+                debugLog("❌ ERREUR: Socket coupé")
                 connected.set(false)
                 false
             } else {
@@ -467,9 +480,6 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             debugLog("❌ EXCEPTION: ${e.message}")
             connected.set(false)
-            runOnUiThread {
-                Toast.makeText(this, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
             false
         }
     }
@@ -478,6 +488,7 @@ class MainActivity : AppCompatActivity() {
         connectionLock.withLock {
             connected.set(false)
             readJob?.cancel()
+            pingJob?.cancel()
             try {
                 input?.close()
                 output?.close()
@@ -499,6 +510,7 @@ class MainActivity : AppCompatActivity() {
         clientJob?.cancel()
         udpJob?.cancel()
         readJob?.cancel()
+        pingJob?.cancel()
         try {
             serverSocket?.close()
             udpSocket?.close()
