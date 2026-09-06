@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
 import java.io.*
 import java.net.*
+import java.nio.charset.StandardCharsets
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "WiFiMouse"
@@ -29,11 +30,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnClick: Button
     private lateinit var cursor: View
     private lateinit var tvFound: TextView
+    private lateinit var tvDebug: TextView
     
     private var serverSocket: ServerSocket? = null
     private var socket: Socket? = null
-    private var output: PrintWriter? = null
-    private var input: BufferedReader? = null
+    private var output: OutputStream? = null
+    private var input: InputStream? = null
     private var udpSocket: DatagramSocket? = null
     private var isServer = false
     private var isRunning = false
@@ -61,16 +63,29 @@ class MainActivity : AppCompatActivity() {
         btnClick = findViewById(R.id.btnClick)
         cursor = findViewById(R.id.cursor)
         tvFound = findViewById(R.id.tvFound)
+        tvDebug = findViewById(R.id.tvDebug)
         
         btnServer.setOnClickListener { startServer() }
         btnScan.setOnClickListener { scanAndConnect() }
         btnDisconnect.setOnClickListener { disconnect() }
-        btnClick.setOnClickListener { send("CLICK") }
+        btnClick.setOnClickListener { sendCommand("CLICK") }
         
         setupTouchpad()
         updateUI(false)
         tvStatus.text = "✅ Prêt\n\n🌐 Les 2 appareils sur le MÊME WiFi"
         tvFound.text = ""
+        tvDebug.text = ""
+    }
+
+    private fun debugLog(msg: String) {
+        Log.d(TAG, msg)
+        runOnUiThread {
+            tvDebug.append("$msg\n")
+            val scroll = tvDebug.layout
+            if (scroll != null) {
+                tvDebug.scrollTo(0, scroll.height)
+            }
+        }
     }
 
     private fun getLocalIP(): String {
@@ -96,13 +111,15 @@ class MainActivity : AppCompatActivity() {
                     val dx = event.x - lastTouchX
                     val dy = event.y - lastTouchY
                     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                        send("MOVE|$dx|$dy")
+                        sendCommand("MOVE|$dx|$dy")
                         cursorX += dx * 0.5f
                         cursorY += dy * 0.5f
                         cursorX = cursorX.coerceIn(10f, 600f)
                         cursorY = cursorY.coerceIn(10f, 400f)
-                        cursor.x = cursorX
-                        cursor.y = cursorY
+                        runOnUiThread {
+                            cursor.x = cursorX
+                            cursor.y = cursorY
+                        }
                         lastTouchX = event.x
                         lastTouchY = event.y
                     }
@@ -122,12 +139,13 @@ class MainActivity : AppCompatActivity() {
         isServer = true
         isRunning = true
         updateUI(true, true)
+        tvDebug.text = ""
         
         val ip = getLocalIP()
         val deviceName = Build.MODEL ?: "Serveur"
         
         tvStatus.text = "🟡 SERVEUR EN ÉCOUTE\n\n📱 Appareil: $deviceName\n🌐 WiFi: $ip\n\nEn attente de connexion..."
-        Log.d(TAG, "Serveur démarré sur $ip:$TCP_PORT")
+        debugLog("Serveur démarré sur $ip:$TCP_PORT")
         
         job = scope.launch {
             try {
@@ -137,8 +155,9 @@ class MainActivity : AppCompatActivity() {
                 
                 while (isRunning) {
                     try {
+                        debugLog("En attente d'un client...")
                         val client = serverSocket?.accept() ?: break
-                        Log.d(TAG, "✅ Client connecté: ${client.inetAddress}")
+                        debugLog("✅ Client connecté: ${client.inetAddress}")
                         
                         runOnUiThread {
                             tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Utilisez le pavé tactile !"
@@ -147,8 +166,11 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         socket = client
-                        output = PrintWriter(client.getOutputStream().bufferedWriter(), true)
-                        input = BufferedReader(InputStreamReader(client.getInputStream()))
+                        output = client.getOutputStream()
+                        input = client.getInputStream()
+                        
+                        // Envoyer un ping de test
+                        sendCommand("PING")
                         
                         startReading()
                         
@@ -157,18 +179,19 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         if (isRunning) {
-                            Log.d(TAG, "🔌 Client déconnecté — Réécoute...")
+                            debugLog("🔌 Client déconnecté — Réécoute...")
                             cleanupConnection()
                             runOnUiThread {
                                 tvStatus.text = "🟡 Déconnecté\nEn attente d'un nouvel appareil..."
                             }
                         }
                     } catch (e: Exception) {
+                        debugLog("Erreur accept: ${e.message}")
                         if (isRunning) delay(1000)
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Serveur erreur: ${e.message}")
+                debugLog("ERREUR Serveur: ${e.message}")
                 runOnUiThread {
                     tvStatus.text = "❌ Erreur: ${e.message}"
                     resetUI()
@@ -189,11 +212,11 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val packet = DatagramPacket(buffer, buffer.size)
                         udpSocket?.receive(packet)
-                        val msg = String(packet.data, 0, packet.length).trim()
+                        val msg = String(packet.data, 0, packet.length, StandardCharsets.UTF_8).trim()
                         
                         if (msg == BROADCAST_MSG) {
                             val response = "$name|$ip|$TCP_PORT"
-                            val responseBytes = response.toByteArray()
+                            val responseBytes = response.toByteArray(StandardCharsets.UTF_8)
                             val senderAddr = packet.address
                             val senderPort = packet.port
                             
@@ -202,14 +225,14 @@ class MainActivity : AppCompatActivity() {
                                 senderAddr, senderPort
                             )
                             udpSocket?.send(responsePacket)
-                            Log.d(TAG, "📤 Répondu à la découverte depuis $senderAddr")
+                            debugLog("📤 Répondu à la découverte depuis $senderAddr")
                         }
                     } catch (e: Exception) {
                         if (isRunning) delay(500)
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "UDP Erreur: ${e.message}")
+                debugLog("UDP Erreur: ${e.message}")
             }
         }
     }
@@ -220,6 +243,7 @@ class MainActivity : AppCompatActivity() {
         updateUI(true, true)
         tvStatus.text = "🔍 RECHERCHE DU SERVEUR...\n\nRecherche en cours..."
         tvFound.text = ""
+        tvDebug.text = ""
         
         scope.launch {
             val foundServers = mutableListOf<DiscoveredServer>()
@@ -234,9 +258,9 @@ class MainActivity : AppCompatActivity() {
                 udpSocket?.soTimeout = 3000
                 
                 val broadcastAddr = getBroadcastAddress()
-                val discoverMsg = BROADCAST_MSG.toByteArray()
+                val discoverMsg = BROADCAST_MSG.toByteArray(StandardCharsets.UTF_8)
                 
-                Log.d(TAG, "🔍 Envoi de la découverte à $broadcastAddr:$UDP_PORT")
+                debugLog("🔍 Envoi de la découverte à $broadcastAddr:$UDP_PORT")
                 
                 repeat(3) {
                     val packet = DatagramPacket(
@@ -254,9 +278,9 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val responsePacket = DatagramPacket(buffer, buffer.size)
                         udpSocket?.receive(responsePacket)
-                        val response = String(responsePacket.data, 0, responsePacket.length).trim()
+                        val response = String(responsePacket.data, 0, responsePacket.length, StandardCharsets.UTF_8).trim()
                         
-                        Log.d(TAG, "📩 Réponse reçue: $response")
+                        debugLog("📩 Réponse reçue: $response")
                         
                         val parts = response.split("|")
                         if (parts.size == 3) {
@@ -271,7 +295,7 @@ class MainActivity : AppCompatActivity() {
                     } catch (e: SocketTimeoutException) {
                         break
                     } catch (e: Exception) {
-                        Log.d(TAG, "Erreur réception: ${e.message}")
+                        debugLog("Erreur réception: ${e.message}")
                     }
                 }
                 
@@ -285,7 +309,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 } else if (foundServers.size == 1) {
                     val server = foundServers[0]
-                    Log.d(TAG, "✅ Un seul serveur trouvé, connexion auto à ${server.address}")
+                    debugLog("✅ Un seul serveur trouvé, connexion auto à ${server.address}")
                     connectTo(server.address, server.port)
                 } else {
                     runOnUiThread {
@@ -307,7 +331,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Erreur scan: ${e.message}")
+                debugLog("Erreur scan: ${e.message}")
                 runOnUiThread {
                     tvStatus.text = "❌ Erreur recherche: ${e.message}"
                     resetUI()
@@ -336,15 +360,18 @@ class MainActivity : AppCompatActivity() {
         try {
             runOnUiThread {
                 tvStatus.text = "🔌 Connexion à $ip..."
+                tvDebug.text = ""
             }
             
             socket = Socket()
+            socket?.tcpNoDelay = true  // ✅ DÉSACTIVE LE BUFFERING — IMMÉDIAT !
+            socket?.keepAlive = true
             socket?.connect(InetSocketAddress(ip, port), 10000)
             
-            output = PrintWriter(socket?.getOutputStream()?.bufferedWriter(), true)
-            input = BufferedReader(InputStreamReader(socket?.getInputStream()))
+            output = socket?.getOutputStream()
+            input = socket?.getInputStream()
             
-            Log.d(TAG, "✅ Connecté au serveur $ip")
+            debugLog("✅ Connecté au serveur $ip")
             runOnUiThread {
                 tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplacez votre doigt sur le pavé"
                 updateUI(true, false)
@@ -358,14 +385,14 @@ class MainActivity : AppCompatActivity() {
             }
             
             if (isRunning) {
-                Log.d(TAG, "🔌 Déconnecté du serveur")
+                debugLog("🔌 Déconnecté du serveur")
                 runOnUiThread {
                     tvStatus.text = "🔌 Déconnecté\nRecherchez à nouveau..."
                     resetUI()
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Connexion échouée: ${e.message}")
+            debugLog("❌ Connexion échouée: ${e.message}")
             runOnUiThread {
                 tvStatus.text = "❌ ÉCHEC DE CONNEXION\n\n${e.message}"
                 resetUI()
@@ -377,29 +404,67 @@ class MainActivity : AppCompatActivity() {
         readJob?.cancel()
         readJob = scope.launch {
             try {
+                debugLog("📖 Boucle de lecture démarrée")
+                val buffer = ByteArray(1024)
+                var accumulated = StringBuilder()
+                
                 while (isRunning && socket?.isConnected == true) {
-                    val line = input?.readLine() ?: break
-                    if (line.isNotEmpty()) {
-                        Log.d(TAG, "📥 Commande: $line")
-                        InputDispatcher.handleCommand(line)
+                    try {
+                        val bytesRead = input?.read(buffer) ?: -1
+                        
+                        if (bytesRead == -1) {
+                            debugLog("🔌 Flux fermé par l'autre appareil")
+                            break
+                        }
+                        
+                        if (bytesRead > 0) {
+                            val chunk = String(buffer, 0, bytesRead, StandardCharsets.UTF_8)
+                            accumulated.append(chunk)
+                            debugLog("📥 Reçu brut: '$chunk'")
+                            
+                            // Traiter chaque ligne complète
+                            while (accumulated.contains("\n")) {
+                                val lineEnd = accumulated.indexOf("\n")
+                                val line = accumulated.substring(0, lineEnd).trim()
+                                accumulated.delete(0, lineEnd + 1)
+                                
+                                if (line.isNotEmpty()) {
+                                    debugLog("✅ Commande: '$line'")
+                                    InputDispatcher.handleCommand(line)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        debugLog("❌ Erreur lecture: ${e.message}")
+                        delay(100)
                     }
                 }
+                debugLog("📖 Boucle de lecture terminée")
             } catch (e: Exception) {
-                Log.d(TAG, "Lecture arrêtée: ${e.message}")
+                debugLog("❌ Erreur lecture globale: ${e.message}")
             }
         }
     }
 
-    private fun send(msg: String) {
+    private fun sendCommand(msg: String) {
         if (output == null || socket?.isConnected != true) {
-            Toast.makeText(this, "Pas connecté — appuyez sur 'Rechercher'", Toast.LENGTH_SHORT).show()
+            debugLog("❌ Pas connecté — impossible d'envoyer")
+            runOnUiThread {
+                Toast.makeText(this, "Pas connecté", Toast.LENGTH_SHORT).show()
+            }
             return
         }
         try {
-            output?.println(msg)
-            Log.d(TAG, "📤 Envoyé: $msg")
+            val fullMsg = "$msg\n"
+            val bytes = fullMsg.toByteArray(StandardCharsets.UTF_8)
+            output?.write(bytes)
+            output?.flush()  // ✅ TRÈS IMPORTANT — ENVOIE TOUT DE SUITE !
+            debugLog("📤 Envoyé: '$msg' (${bytes.size} octets)")
         } catch (e: Exception) {
-            Log.e(TAG, "Envoi échoué: ${e.message}")
+            debugLog("❌ Envoi échoué: ${e.message}")
+            runOnUiThread {
+                Toast.makeText(this, "Erreur envoi: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
             disconnect()
         }
     }
@@ -410,7 +475,9 @@ class MainActivity : AppCompatActivity() {
             input?.close()
             output?.close()
             socket?.close()
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            debugLog("Erreur fermeture: ${e.message}")
+        }
         input = null
         output = null
         socket = null
@@ -420,11 +487,13 @@ class MainActivity : AppCompatActivity() {
         isRunning = false
         job?.cancel()
         udpJob?.cancel()
+        readJob?.cancel()
         serverSocket?.close()
         udpSocket?.close()
         cleanupConnection()
         tvStatus.text = "🔌 Déconnecté"
         tvFound.text = ""
+        tvDebug.text = ""
         resetUI()
     }
 
