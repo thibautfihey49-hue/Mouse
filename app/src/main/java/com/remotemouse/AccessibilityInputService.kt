@@ -8,7 +8,7 @@ class AccessibilityInputService : AccessibilityService() {
     
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "✅ Service d'accessibilité DÉMARRÉ")
+        Log.d(TAG, "✅ Service Accessibilité DÉMARRÉ")
         InputDispatcher.service = this
     }
     

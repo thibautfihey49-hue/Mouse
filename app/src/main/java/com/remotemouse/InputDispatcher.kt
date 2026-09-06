@@ -20,7 +20,7 @@ object InputDispatcher {
     }
 
     fun handleCommand(cmd: String) {
-        Log.d(TAG, "Reçu: $cmd")
+        Log.d(TAG, "📥 Reçu: $cmd")
         val svc = service ?: run {
             Log.e(TAG, "❌ Service NULL ! Active l'accessibilité !")
             return
@@ -48,12 +48,11 @@ object InputDispatcher {
         posX = (posX + dx * speed).coerceIn(50f, dm.widthPixels - 50f)
         posY = (posY + dy * speed).coerceIn(50f, dm.heightPixels - 50f)
         
-        val path = Path().apply { moveTo(posX, posY); lineTo(posX, posY) }
+        val path = Path().apply { moveTo(posX, posY) }
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, 10))
             .build()
         svc.dispatchGesture(gesture, null, null)
-        Log.d(TAG, "Déplacement: $dx,$dy → $posX,$posY")
     }
 
     private fun click(svc: AccessibilityService) {
@@ -62,6 +61,6 @@ object InputDispatcher {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 30))
             .build()
         svc.dispatchGesture(gesture, null, null)
-        Log.d(TAG, "Clic à: $posX,$posY")
+        Log.d(TAG, "👆 Clic à: $posX,$posY")
     }
 }

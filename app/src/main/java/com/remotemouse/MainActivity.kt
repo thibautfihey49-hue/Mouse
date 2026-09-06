@@ -1,55 +1,52 @@
 package com.remotemouse
 
-import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothSocket
-import android.bluetooth.BluetoothDevice
-import android.content.Intent
-import android.content.pm.PackageManager
+import android.content.Context
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.*
 import java.io.*
-import java.util.UUID
+import java.net.*
 
 class MainActivity : AppCompatActivity() {
-    private val TAG = "MouseApp"
-    private val BT_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    private val TAG = "WiFiMouse"
+    private val TCP_PORT = 8888
+    private val UDP_PORT = 8889
+    private val BROADCAST_MSG = "WIFIMOUSE_SERVER_DISCOVER"
     
     private lateinit var tvStatus: TextView
     private lateinit var btnServer: Button
-    private lateinit var btnConnect: Button
+    private lateinit var btnScan: Button
     private lateinit var btnDisconnect: Button
     private lateinit var touchpad: View
     private lateinit var btnClick: Button
     private lateinit var cursor: View
+    private lateinit var tvFound: TextView
     
-    private var btAdapter: BluetoothAdapter? = null
-    private var socket: BluetoothSocket? = null
-    private var outputStream: OutputStream? = null
-    private var inputStream: InputStream? = null
+    private var serverSocket: ServerSocket? = null
+    private var socket: Socket? = null
+    private var output: PrintWriter? = null
+    private var input: BufferedReader? = null
+    private var udpSocket: DatagramSocket? = null
     private var isServer = false
-    private var isManuallyDisconnected = false
+    private var isRunning = false
     private var job: Job? = null
-    private var readingJob: Job? = null
-    private var keepAliveJob: Job? = null
+    private var readJob: Job? = null
+    private var udpJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + Job())
-    private val handler = Handler(Looper.getMainLooper())
     
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var cursorX = 0f
     private var cursorY = 0f
+    
+    data class DiscoveredServer(val name: String, val address: String, val port: Int)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,19 +54,34 @@ class MainActivity : AppCompatActivity() {
         
         tvStatus = findViewById(R.id.tvStatus)
         btnServer = findViewById(R.id.btnServer)
-        btnConnect = findViewById(R.id.btnConnect)
+        btnScan = findViewById(R.id.btnScan)
         btnDisconnect = findViewById(R.id.btnDisconnect)
         touchpad = findViewById(R.id.touchpad)
         btnClick = findViewById(R.id.btnClick)
         cursor = findViewById(R.id.cursor)
+        tvFound = findViewById(R.id.tvFound)
         
         btnServer.setOnClickListener { startServer() }
-        btnConnect.setOnClickListener { showDevices() }
-        btnDisconnect.setOnClickListener { manualDisconnect() }
-        btnClick.setOnClickListener { sendCommand("CLICK\n") }
+        btnScan.setOnClickListener { scanAndConnect() }
+        btnDisconnect.setOnClickListener { disconnect() }
+        btnClick.setOnClickListener { send("CLICK") }
         
         setupTouchpad()
-        initBluetooth()
+        updateUI(false)
+        tvStatus.text = "✅ Prêt\n\n🌐 Les 2 appareils sur le MÊME WiFi"
+        tvFound.text = ""
+    }
+
+    private fun getLocalIP(): String {
+        val wifiMgr = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val ip = wifiMgr.connectionInfo.ipAddress
+        return String.format(
+            "%d.%d.%d.%d",
+            ip and 0xFF,
+            ip shr 8 and 0xFF,
+            ip shr 16 and 0xFF,
+            ip shr 24 and 0xFF
+        )
     }
 
     private fun setupTouchpad() {
@@ -83,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                     val dx = event.x - lastTouchX
                     val dy = event.y - lastTouchY
                     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                        sendCommand("MOVE|$dx|$dy\n")
+                        send("MOVE|$dx|$dy")
                         cursorX += dx * 0.5f
                         cursorY += dy * 0.5f
                         cursorX = cursorX.coerceIn(10f, 600f)
@@ -99,50 +111,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun initBluetooth() {
-        val manager = getSystemService(BluetoothManager::class.java)
-        btAdapter = manager.adapter
-        if (btAdapter == null) {
-            Toast.makeText(this, "Bluetooth non disponible", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-        checkPermissions()
-    }
-
-    private fun checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val perms = mutableListOf<String>()
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                perms.add(Manifest.permission.BLUETOOTH_CONNECT)
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                perms.add(Manifest.permission.BLUETOOTH_SCAN)
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                perms.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-            if (perms.isNotEmpty()) {
-                requestPermissions(perms.toTypedArray(), 100)
-                return
-            }
-        }
-        checkBluetoothOn()
-    }
-
-    override fun onRequestPermissionsResult(r: Int, p: Array<out String>, g: IntArray) {
-        super.onRequestPermissionsResult(r, p, g)
-        if (g.all { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) checkBluetoothOn()
-        else { Toast.makeText(this, "Permissions requises", Toast.LENGTH_SHORT).show(); finish() }
-    }
-
-    private fun checkBluetoothOn() {
-        if (btAdapter?.isEnabled == true) ready()
-        else startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), 101)
-    }
-
-    private fun ready() {
-        updateUI(false)
-        tvStatus.text = "✅ Prêt\n\n📱 Serveur: Démarrer + activer accessibilité\n📲 Client: Se connecter"
-    }
-
     private fun startServer() {
         if (!isAccessibilityOn()) {
             Toast.makeText(this, "👉 Active l'accessibilité dans les paramètres", Toast.LENGTH_LONG).show()
@@ -151,256 +119,328 @@ class MainActivity : AppCompatActivity() {
         }
         
         isServer = true
-        isManuallyDisconnected = false
+        isRunning = true
         updateUI(true, true)
-        startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300))
         
-        tvStatus.text = "⏳ Serveur en écoute...\nNom: ${btAdapter?.name}"
+        val ip = getLocalIP()
+        val deviceName = Build.MODEL ?: "Serveur"
         
+        tvStatus.text = "🟡 SERVEUR EN ÉCOUTE\n\n📱 Appareil: $deviceName\n🌐 WiFi: $ip\n\nEn attente de connexion..."
+        Log.d(TAG, "Serveur démarré sur $ip:$TCP_PORT")
+        
+        // Démarrer le serveur TCP
         job = scope.launch {
-            while (isActive && !isManuallyDisconnected) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                        checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                        return@launch
-                    
-                    val serverSocket = btAdapter?.listenUsingRfcommWithServiceRecord("Mouse", BT_UUID)
-                    Log.d(TAG, "Serveur: en attente de connexion...")
-                    
-                    val clientSocket = serverSocket?.accept()
-                    serverSocket?.close()
-                    
-                    clientSocket?.let {
-                        socket = it
-                        val device = it.remoteDevice
-                        outputStream = it.outputStream
-                        inputStream = it.inputStream
-                        
-                        Log.d(TAG, "✅ Connecté à: ${device.name}")
+            try {
+                serverSocket = ServerSocket(TCP_PORT)
+                serverSocket?.soTimeout = 0
+                
+                // Démarrer le broadcast UDP pour la découverte
+                startUdpBroadcaster(deviceName, ip)
+                
+                while (isRunning) {
+                    try {
+                        val client = serverSocket?.accept() ?: break
+                        Log.d(TAG, "✅ Client connecté: ${client.inetAddress}")
                         
                         runOnUiThread {
-                            tvStatus.text = "✅ CONNECTÉ À ${device.name}\n\n🖱️ Déplacez votre doigt !"
+                            tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Utilisez le pavé tactile !"
                             updateUI(true, false)
+                            tvFound.text = ""
                         }
                         
-                        startKeepAlive()
+                        socket = client
+                        output = PrintWriter(client.getOutputStream().bufferedWriter(), true)
+                        input = BufferedReader(InputStreamReader(client.getInputStream()))
+                        
                         startReading()
                         
-                        // Attendre déconnexion
-                        while (socket?.isConnected == true && !isManuallyDisconnected) {
+                        while (isRunning && socket?.isConnected == true) {
                             delay(500)
                         }
                         
-                        if (!isManuallyDisconnected) {
-                            Log.d(TAG, "🔌 Connexion perdue — Reconnexion dans 2s...")
+                        if (isRunning) {
+                            Log.d(TAG, "🔌 Client déconnecté — Réécoute...")
                             cleanupConnection()
                             runOnUiThread {
-                                tvStatus.text = "🔌 Connexion perdue\n⏳ Reconnexion automatique..."
-                            }
-                            delay(2000)
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Serveur erreur: ${e.message}")
-                    if (!isManuallyDisconnected) {
-                        delay(1500)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun startKeepAlive() {
-        keepAliveJob?.cancel()
-        keepAliveJob = scope.launch {
-            while (isActive && socket?.isConnected == true) {
-                try {
-                    outputStream?.write("PING\n".toByteArray())
-                    outputStream?.flush()
-                    delay(15000) // Envoyer un PING toutes les 15s
-                } catch (e: Exception) {
-                    Log.d(TAG, "KeepAlive échoué: ${e.message}")
-                    break
-                }
-            }
-        }
-    }
-
-    private fun startReading() {
-        readingJob?.cancel()
-        readingJob = scope.launch {
-            try {
-                val buffer = ByteArray(1024)
-                var accumulated = ""
-                
-                while (isActive && socket?.isConnected == true && !isManuallyDisconnected) {
-                    val bytes = inputStream?.read(buffer) ?: -1
-                    
-                    if (bytes == -1) {
-                        Log.w(TAG, "Socket fermée par l'autre appareil")
-                        break
-                    }
-                    
-                    if (bytes > 0) {
-                        val chunk = String(buffer, 0, bytes)
-                        accumulated += chunk
-                        
-                        while (accumulated.contains("\n")) {
-                            val lineEnd = accumulated.indexOf("\n")
-                            val line = accumulated.substring(0, lineEnd).trim()
-                            accumulated = accumulated.substring(lineEnd + 1)
-                            
-                            when {
-                                line.isEmpty() -> {}
-                                line == "PING" -> Log.d(TAG, "PING reçu")
-                                else -> {
-                                    Log.d(TAG, "→ Commande: '$line'")
-                                    InputDispatcher.handleCommand(line)
-                                }
+                                tvStatus.text = "🟡 Déconnecté\nEn attente d'un nouvel appareil..."
                             }
                         }
+                    } catch (e: Exception) {
+                        if (isRunning) delay(1000)
                     }
                 }
-                Log.d(TAG, "Boucle de lecture terminée")
             } catch (e: Exception) {
-                Log.e(TAG, "Erreur lecture: ${e.message}")
-            } finally {
-                if (!isManuallyDisconnected) {
-                    runOnUiThread {
-                        tvStatus.text = "🔌 Connexion perdue\n⏳ Reconnexion..."
-                    }
-                    cleanupConnection()
-                }
-            }
-        }
-    }
-
-    private fun showDevices() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-            return
-        
-        val devices = btAdapter?.bondedDevices ?: emptySet()
-        if (devices.isEmpty()) {
-            Toast.makeText(this, "Associe d'abord les 2 appareils dans les paramètres Bluetooth", Toast.LENGTH_LONG).show()
-            startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
-            return
-        }
-        
-        val names = devices.map { "${it.name} (${it.address})" }.toTypedArray()
-        val list = devices.toList()
-        AlertDialog.Builder(this)
-            .setTitle("Choisis un appareil")
-            .setItems(names) { _, i -> connectTo(list[i]) }
-            .show()
-    }
-
-    private fun connectTo(device: BluetoothDevice) {
-        isServer = false
-        isManuallyDisconnected = false
-        updateUI(true, true)
-        tvStatus.text = "🔌 Connexion à ${device.name}..."
-        
-        scope.launch {
-            var retryCount = 0
-            val maxRetries = 5
-            
-            while (retryCount < maxRetries && !isManuallyDisconnected) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                        checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                        return@launch
-                    
-                    socket = device.createRfcommSocketToServiceRecord(BT_UUID)
-                    socket?.connect()
-                    
-                    outputStream = socket?.outputStream
-                    inputStream = socket?.inputStream
-                    
-                    Log.d(TAG, "✅ Client connecté ! Tentative ${retryCount+1}")
-                    
-                    runOnUiThread {
-                        tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplacez votre doigt sur le pavé"
-                        updateUI(true, false)
-                    }
-                    
-                    startKeepAlive()
-                    startReading()
-                    
-                    // Surveiller la connexion
-                    while (socket?.isConnected == true && !isManuallyDisconnected) {
-                        delay(500)
-                    }
-                    
-                    if (!isManuallyDisconnected) {
-                        Log.d(TAG, "🔌 Connexion perdue — Reconnexion...")
-                        cleanupConnection()
-                        retryCount++
-                        runOnUiThread {
-                            tvStatus.text = "🔌 Connexion perdue\n⏳ Reconnexion ${retryCount}/${maxRetries}..."
-                        }
-                        delay(2000)
-                    }
-                    return@launch
-                } catch (e: Exception) {
-                    Log.e(TAG, "Connexion échouée (${retryCount+1}/${maxRetries}): ${e.message}")
-                    retryCount++
-                    cleanupConnection()
-                    runOnUiThread {
-                        tvStatus.text = "❌ ÉCHEC ${retryCount}/${maxRetries}:\n${e.message}\n\nNouvelle tentative..."
-                    }
-                    delay(1500)
-                }
-            }
-            
-            if (retryCount >= maxRetries) {
+                Log.e(TAG, "Serveur erreur: ${e.message}")
                 runOnUiThread {
-                    tvStatus.text = "❌ Impossible de se connecter\n\nVérifie que le serveur est démarré"
+                    tvStatus.text = "❌ Erreur: ${e.message}"
                     resetUI()
                 }
             }
         }
     }
 
-    private fun sendCommand(cmd: String) {
-        if (outputStream == null || socket?.isConnected != true) {
-            Toast.makeText(this, "Pas connecté — attendez reconnexion...", Toast.LENGTH_SHORT).show()
+    private fun startUdpBroadcaster(name: String, ip: String) {
+        udpJob?.cancel()
+        udpJob = scope.launch {
+            try {
+                udpSocket = DatagramSocket(UDP_PORT)
+                udpSocket?.broadcast = true
+                val buffer = ByteArray(1024)
+                
+                while (isRunning) {
+                    try {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        udpSocket?.receive(packet)
+                        val msg = String(packet.data, 0, packet.length).trim()
+                        
+                        if (msg == BROADCAST_MSG) {
+                            val response = "$name|$ip|$TCP_PORT"
+                            val responseBytes = response.toByteArray()
+                            val senderAddr = packet.address
+                            val senderPort = packet.port
+                            
+                            val responsePacket = DatagramPacket(
+                                responseBytes, responseBytes.size,
+                                senderAddr, senderPort
+                            )
+                            udpSocket?.send(responsePacket)
+                            Log.d(TAG, "📤 Répondu à la découverte depuis $senderAddr")
+                        }
+                    } catch (e: Exception) {
+                        if (isRunning) delay(500)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "UDP Erreur: ${e.message}")
+            }
+        }
+    }
+
+    private fun scanAndConnect() {
+        isServer = false
+        isRunning = true
+        updateUI(true, true)
+        tvStatus.text = "🔍 RECHERCHE DU SERVEUR...\n\nRecherche en cours..."
+        tvFound.text = ""
+        
+        scope.launch {
+            val foundServers = mutableListOf<DiscoveredServer>()
+            
+            try {
+                // Activer le multicast pour recevoir les broadcasts
+                val wifiMgr = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                val wifiLock = wifiMgr.createMulticastLock("WiFiMouse")
+                wifiLock.setReferenceCounted(true)
+                wifiLock.acquire()
+                
+                udpSocket = DatagramSocket()
+                udpSocket?.soTimeout = 3000 // 3 secondes de recherche
+                
+                // Envoyer la demande de découverte en broadcast
+                val broadcastAddr = getBroadcastAddress()
+                val discoverMsg = BROADCAST_MSG.toByteArray()
+                
+                Log.d(TAG, "🔍 Envoi de la découverte à $broadcastAddr:$UDP_PORT")
+                
+                // Envoyer plusieurs fois pour être sûr
+                repeat(3) {
+                    val packet = DatagramPacket(
+                        discoverMsg, discoverMsg.size,
+                        InetAddress.getByName(broadcastAddr), UDP_PORT
+                    )
+                    udpSocket?.send(packet)
+                    delay(500)
+                }
+                
+                // Écouter les réponses pendant 5 secondes max
+                val startTime = System.currentTimeMillis()
+                val buffer = ByteArray(1024)
+                
+                while (System.currentTimeMillis() - startTime < 5000 && isRunning) {
+                    try {
+                        val responsePacket = DatagramPacket(buffer, buffer.size)
+                        udpSocket?.receive(responsePacket)
+                        val response = String(responsePacket.data, 0, responsePacket.length).trim()
+                        
+                        Log.d(TAG, "📩 Réponse reçue: $response")
+                        
+                        val parts = response.split("|")
+                        if (parts.size == 3) {
+                            val server = DiscoveredServer(parts[0], parts[1], parts[2].toInt())
+                            if (!foundServers.any { it.address == server.address }) {
+                                foundServers.add(server)
+                                runOnUiThread {
+                                    tvFound.text = "✅ Trouvé: ${server.name}\n${server.address}"
+                                }
+                            }
+                        }
+                    } catch (e: SocketTimeoutException) {
+                        break
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Erreur réception: ${e.message}")
+                    }
+                }
+                
+                wifiLock.release()
+                udpSocket?.close()
+                
+                // Afficher les serveurs trouvés
+                if (foundServers.isEmpty()) {
+                    runOnUiThread {
+                        tvStatus.text = "❌ AUCUN SERVEUR TROUVÉ\n\n• Les 2 appareils sont-ils au MÊME WiFi ?\n• Le serveur est-il démarré ?"
+                        resetUI()
+                    }
+                } else if (foundServers.size == 1) {
+                    // Un seul serveur trouvé → connexion automatique
+                    val server = foundServers[0]
+                    Log.d(TAG, "✅ Un seul serveur trouvé, connexion auto à ${server.address}")
+                    connectTo(server.address, server.port)
+                } else {
+                    // Plusieurs serveurs → choisir
+                    runOnUiThread {
+                        val names = foundServers.map { "${it.name}\n${it.address}" }.toTypedArray()
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Sélectionnez l'appareil")
+                            .setItems(names) { _, i ->
+                                val srv = foundServers[i]
+                                scope.launch { connectTo(srv.address, srv.port) }
+                            }
+                            .setOnDismissListener {
+                                if (socket?.isConnected != true) {
+                                    resetUI()
+                                    tvStatus.text = "🔍 Recherche annulée"
+                                }
+                            }
+                            .show()
+                        tvStatus.text = "✅ ${foundServers.size} appareil(s) trouvé(s)"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur scan: ${e.message}")
+                runOnUiThread {
+                    tvStatus.text = "❌ Erreur recherche: ${e.message}"
+                    resetUI()
+                }
+            }
+        }
+    }
+
+    private fun getBroadcastAddress(): String {
+        val wifiMgr = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val dhcpInfo = wifiMgr.dhcpInfo
+        val ip = dhcpInfo.ipAddress
+        val mask = dhcpInfo.netmask
+        
+        val broadcast = ip or mask.inv()
+        return String.format(
+            "%d.%d.%d.%d",
+            broadcast and 0xFF,
+            broadcast shr 8 and 0xFF,
+            broadcast shr 16 and 0xFF,
+            broadcast shr 24 and 0xFF
+        )
+    }
+
+    private suspend fun connectTo(ip: String, port: Int) {
+        try {
+            runOnUiThread {
+                tvStatus.text = "🔌 Connexion à $ip..."
+            }
+            
+            socket = Socket()
+            socket?.connect(InetSocketAddress(ip, port), 10000)
+            
+            output = PrintWriter(socket?.getOutputStream()?.bufferedWriter(), true)
+            input = BufferedReader(InputStreamReader(socket?.getInputStream()))
+            
+            Log.d(TAG, "✅ Connecté au serveur $ip")
+            runOnUiThread {
+                tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplacez votre doigt sur le pavé"
+                updateUI(true, false)
+                tvFound.text = ""
+            }
+            
+            startReading()
+            
+            while (isRunning && socket?.isConnected == true) {
+                delay(500)
+            }
+            
+            if (isRunning) {
+                Log.d(TAG, "🔌 Déconnecté du serveur")
+                runOnUiThread {
+                    tvStatus.text = "🔌 Déconnecté\nRecherchez à nouveau..."
+                    resetUI()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Connexion échouée: ${e.message}")
+            runOnUiThread {
+                tvStatus.text = "❌ ÉCHEC DE CONNEXION\n\n${e.message}"
+                resetUI()
+            }
+        }
+    }
+
+    private fun startReading() {
+        readJob?.cancel()
+        readJob = scope.launch {
+            try {
+                while (isRunning && socket?.isConnected == true) {
+                    val line = input?.readLine() ?: break
+                    if (line.isNotEmpty()) {
+                        Log.d(TAG, "📥 Commande: $line")
+                        InputDispatcher.handleCommand(line)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Lecture arrêtée: ${e.message}")
+            }
+        }
+    }
+
+    private fun send(msg: String) {
+        if (output == null || socket?.isConnected != true) {
+            Toast.makeText(this, "Pas connecté — appuyez sur 'Rechercher'", Toast.LENGTH_SHORT).show()
             return
         }
         try {
-            outputStream?.write(cmd.toByteArray(Charsets.UTF_8))
-            outputStream?.flush()
-            Log.d(TAG, "Envoyé: ${cmd.trim()}")
+            output?.println(msg)
+            Log.d(TAG, "📤 Envoyé: $msg")
         } catch (e: Exception) {
             Log.e(TAG, "Envoi échoué: ${e.message}")
+            disconnect()
         }
     }
 
     private fun cleanupConnection() {
-        keepAliveJob?.cancel()
-        readingJob?.cancel()
+        readJob?.cancel()
         try {
-            inputStream?.close()
-            outputStream?.close()
+            input?.close()
+            output?.close()
             socket?.close()
         } catch (e: Exception) {}
-        inputStream = null
-        outputStream = null
+        input = null
+        output = null
         socket = null
     }
 
-    private fun manualDisconnect() {
-        isManuallyDisconnected = true
+    private fun disconnect() {
+        isRunning = false
         job?.cancel()
+        udpJob?.cancel()
+        serverSocket?.close()
+        udpSocket?.close()
         cleanupConnection()
         tvStatus.text = "🔌 Déconnecté"
+        tvFound.text = ""
         resetUI()
     }
 
-    private fun resetUI() { updateUI(false, false); isServer = false; }
+    private fun resetUI() { updateUI(false, false) }
     private fun updateUI(connected: Boolean, connecting: Boolean = false) {
         btnServer.isEnabled = !connected && !connecting
-        btnConnect.isEnabled = !connected && !connecting
+        btnScan.isEnabled = !connected && !connecting
         btnDisconnect.isEnabled = connected
         touchpad.isEnabled = connected
         btnClick.isEnabled = connected
@@ -411,17 +451,14 @@ class MainActivity : AppCompatActivity() {
         return enabled?.contains(packageName) == true
     }
 
-    override fun onActivityResult(r: Int, code: Int, d: Intent?) {
-        super.onActivityResult(r, code, d)
-        if (r == 101) if (code == RESULT_OK) ready() else finish()
-    }
-    
     override fun onDestroy() {
         super.onDestroy()
-        isManuallyDisconnected = true
+        isRunning = false
         job?.cancel()
-        keepAliveJob?.cancel()
-        readingJob?.cancel()
+        udpJob?.cancel()
+        readJob?.cancel()
+        serverSocket?.close()
+        udpSocket?.close()
         cleanupConnection()
     }
 }
