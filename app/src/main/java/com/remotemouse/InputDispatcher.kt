@@ -14,7 +14,10 @@ object InputDispatcher {
         val parts = cmd.split("|")
         if (parts.isEmpty()) return
         when (parts[0]) {
-            "MOVE" -> performMove(parts[1].toFloat(), parts[2].toFloat())
+            "MOVE" -> performMove(
+                parts.getOrNull(1)?.toFloatOrNull() ?: 0f,
+                parts.getOrNull(2)?.toFloatOrNull() ?: 0f
+            )
             "CLICK" -> performClick()
             "RIGHT_CLICK" -> performRightClick()
         }

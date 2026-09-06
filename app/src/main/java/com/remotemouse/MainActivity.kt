@@ -41,21 +41,21 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         btnStartServer.setOnClickListener { if (!isServerMode) startServer() else stopServer() }
         btnConnect.setOnClickListener { if (!client.isConnected && !client.isConnecting) startDiscovery() }
-        btnDisconnect.setOnClickListener { client.disconnect(); updateUI(); tvStatus.text = "🔌 Déconnecté" }
+        btnDisconnect.setOnClickListener { client.disconnect(); updateUI(); tvStatus.text = "Disconnected" }
         
         touchpad.onTouchListener = { dx, dy -> if (client.isConnected) client.sendCommand("MOVE|$dx|$dy") }
         btnLeftClick.setOnClickListener { if (client.isConnected) client.sendCommand("CLICK") }
         btnRightClick.setOnClickListener { if (client.isConnected) client.sendCommand("RIGHT_CLICK") }
 
         client.onDeviceFound = { devices ->
-            tvStatus.text = if (devices.isEmpty()) "🔍 Recherche en cours..." else "✅ ${devices.first()} détecté... Connexion..."
+            tvStatus.text = if (devices.isEmpty()) "Searching..." else "Found ${devices.first()}... Connecting..."
         }
-        client.onConnected = { tvStatus.text = "✅ CONNECTÉ ! Utilisez le pavé"; updateUI() }
-        client.onConnectionFailed = { err -> tvStatus.text = "❌ $err\n• Même Wi-Fi ?\n• Serveur démarré ?"; btnConnect.isEnabled = true }
-        client.onDisconnected = { tvStatus.text = "🔌 Déconnecté"; updateUI() }
+        client.onConnected = { tvStatus.text = "CONNECTED! Use the touchpad"; updateUI() }
+        client.onConnectionFailed = { err -> tvStatus.text = "Error: $err\n• Same Wi-Fi?\n• Server running?"; btnConnect.isEnabled = true }
+        client.onDisconnected = { tvStatus.text = "Disconnected"; updateUI() }
 
-        server.onClientConnected = { tvStatus.text = "✅ Client connecté ! Contrôlez depuis l'autre téléphone" }
-        server.onClientDisconnected = { tvStatus.text = "⏹️ En attente d'un client..." }
+        server.onClientConnected = { tvStatus.text = "Client connected! Control from other phone" }
+        server.onClientDisconnected = { tvStatus.text = "Waiting for client..." }
         server.onCommandReceived = { cmd ->
             runOnUiThread {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) InputDispatcher.dispatchCommand(cmd)
@@ -65,35 +65,35 @@ class MainActivity : AppCompatActivity() {
 
     private fun startServer() {
         if (!isAccessibilityEnabled()) {
-            Toast.makeText(this, "👉 Activez l'accessibilité pour RemoteMouse", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Enable Accessibility for RemoteMouse", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
         isServerMode = true
         server.start(this)
-        btnStartServer.text = "🛑 ARRÊTER LE SERVEUR"
+        btnStartServer.text = "STOP SERVER"
         btnConnect.isEnabled = false
-        tvStatus.text = "✅ SERVEUR EN ÉCOUTE\nEn attente de connexion..."
+        tvStatus.text = "SERVER RUNNING\nWaiting for connection..."
     }
 
     private fun stopServer() {
         isServerMode = false
         server.stop()
-        btnStartServer.text = "▶️ DÉMARRER LE SERVEUR"
+        btnStartServer.text = "START SERVER"
         btnConnect.isEnabled = true
-        tvStatus.text = "Serveur arrêté"
+        tvStatus.text = "Server stopped"
     }
 
     private fun startDiscovery() {
-        tvStatus.text = "🔍 Recherche d'appareils..."
+        tvStatus.text = "Searching for devices..."
         btnConnect.isEnabled = false
         client.startDiscovery()
         android.os.Handler(mainLooper).postDelayed({
             if (!client.isConnected) {
                 client.stopDiscovery()
                 btnConnect.isEnabled = true
-                if (tvStatus.text.startsWith("🔍 Recherche")) {
-                    tvStatus.text = "⏱️ Aucun appareil trouvé\n• Même Wi-Fi ?\n• Serveur démarré ?"
+                if (tvStatus.text.startsWith("Searching")) {
+                    tvStatus.text = "No device found\n• Same Wi-Fi?\n• Server running?"
                 }
             }
         }, 15000)

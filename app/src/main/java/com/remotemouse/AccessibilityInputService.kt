@@ -7,7 +7,7 @@ class AccessibilityInputService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         InputDispatcher.setService(this)
-        Log.d("RemoteMouse", "✅ Service démarré")
+        Log.d("RemoteMouse", "Service started")
     }
     override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {}
     override fun onInterrupt() {}

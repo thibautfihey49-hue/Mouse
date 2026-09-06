@@ -32,7 +32,7 @@ class TcpServer(private val port: Int = 8888) {
                 serverSocket = ServerSocket(port)
                 serverSocket?.reuseAddress = true
                 val actualPort = serverSocket?.localPort ?: port
-                Log.d("RemoteMouse", "✅ Serveur sur port $actualPort")
+                Log.d("RemoteMouse", "Server running on port $actualPort")
                 
                 nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
                 val serviceInfo = NsdServiceInfo().apply {
@@ -43,11 +43,11 @@ class TcpServer(private val port: Int = 8888) {
                 
                 registrationListener = object : NsdManager.RegistrationListener {
                     override fun onServiceRegistered(service: NsdServiceInfo) {
-                        Log.d("RemoteMouse", "📢 Annoncé: ${service.serviceName}")
+                        Log.d("RemoteMouse", "Service announced: ${service.serviceName}")
                     }
                     override fun onServiceUnregistered(service: NsdServiceInfo) {}
                     override fun onRegistrationFailed(service: NsdServiceInfo, e: Int) {
-                        Log.e("RemoteMouse", "❌ Échec annonce: $e")
+                        Log.e("RemoteMouse", "Announcement failed: $e")
                     }
                     override fun onUnregistrationFailed(s: NsdServiceInfo, e: Int) {}
                 }
@@ -56,20 +56,20 @@ class TcpServer(private val port: Int = 8888) {
                 
                 while (isRunning) {
                     try {
-                        Log.d("RemoteMouse", "⏳ En attente...")
+                        Log.d("RemoteMouse", "Waiting for connection...")
                         clientSocket = serverSocket?.accept() ?: break
-                        Log.d("RemoteMouse", "🔗 Client connecté: ${clientSocket?.inetAddress}")
+                        Log.d("RemoteMouse", "Client connected: ${clientSocket?.inetAddress}")
                         
                         withContext(Dispatchers.Main) { onClientConnected?.invoke() }
                         
                         val reader = BufferedReader(InputStreamReader(clientSocket?.getInputStream()))
                         while (isRunning && clientSocket?.isConnected == true) {
                             val cmd = reader.readLine() ?: break
-                            Log.d("RemoteMouse", "📥 Reçu: $cmd")
+                            Log.d("RemoteMouse", "Received: $cmd")
                             withContext(Dispatchers.Main) { onCommandReceived?.invoke(cmd) }
                         }
                     } catch (e: Exception) {
-                        Log.e("RemoteMouse", "Erreur: ${e.message}")
+                        Log.e("RemoteMouse", "Error: ${e.message}")
                     } finally {
                         try { clientSocket?.close() } catch (e: Exception) {}
                         clientSocket = null
@@ -77,7 +77,7 @@ class TcpServer(private val port: Int = 8888) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e("RemoteMouse", "❌ Serveur: ${e.message}")
+                Log.e("RemoteMouse", "Server error: ${e.message}")
                 isRunning = false
             }
         }

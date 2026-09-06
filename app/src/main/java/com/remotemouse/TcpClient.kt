@@ -37,10 +37,10 @@ class TcpClient(private val context: Context) {
         
         discoveryListener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {
-                Log.d("RemoteMouse", "🔍 Recherche démarrée")
+                Log.d("RemoteMouse", "Discovery started")
             }
             override fun onServiceFound(service: NsdServiceInfo) {
-                Log.d("RemoteMouse", "✅ Trouvé: ${service.serviceName}")
+                Log.d("RemoteMouse", "Found: ${service.serviceName}")
                 if (service.serviceType != "_remotemouse._tcp.") return
                 if (foundServices.any { it.serviceName == service.serviceName }) return
                 foundServices.add(service)
@@ -53,14 +53,14 @@ class TcpClient(private val context: Context) {
             }
             override fun onDiscoveryStopped(t: String) {}
             override fun onStartDiscoveryFailed(t: String, e: Int) {
-                runOnUiThread { onConnectionFailed?.invoke("Recherche impossible") }
+                runOnUiThread { onConnectionFailed?.invoke("Discovery failed") }
             }
             override fun onStopDiscoveryFailed(t: String, e: Int) {}
         }
         try {
             nsdManager?.discoverServices("_remotemouse._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
         } catch (e: Exception) {
-            Log.e("RemoteMouse", "❌ Erreur découverte: ${e.message}")
+            Log.e("RemoteMouse", "Discovery error: ${e.message}")
         }
     }
 
@@ -70,10 +70,10 @@ class TcpClient(private val context: Context) {
         nsdManager?.resolveService(service, object : NsdManager.ResolveListener {
             override fun onResolveFailed(info: NsdServiceInfo, e: Int) {
                 isConnecting = false
-                runOnUiThread { onConnectionFailed?.invoke("Impossible de résoudre l'adresse") }
+                runOnUiThread { onConnectionFailed?.invoke("Cannot resolve address") }
             }
             override fun onServiceResolved(info: NsdServiceInfo) {
-                Log.d("RemoteMouse", "✅ Résolu: ${info.host}:${info.port}")
+                Log.d("RemoteMouse", "Resolved: ${info.host}:${info.port}")
                 connectTo(info.host, info.port)
             }
         })
@@ -83,7 +83,7 @@ class TcpClient(private val context: Context) {
         connectJob?.cancel()
         connectJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                Log.d("RemoteMouse", "🔌 Connexion à $host:$port...")
+                Log.d("RemoteMouse", "Connecting to $host:$port...")
                 socket = Socket().apply {
                     soTimeout = 5000
                     connect(InetSocketAddress(host, port), 5000)
@@ -91,17 +91,17 @@ class TcpClient(private val context: Context) {
                 writer = PrintWriter(socket?.getOutputStream(), true)
                 isConnected = true
                 isConnecting = false
-                Log.d("RemoteMouse", "✅ CONNECTÉ !")
+                Log.d("RemoteMouse", "CONNECTED!")
                 runOnUiThread { onConnected?.invoke() }
             } catch (e: Exception) {
-                Log.e("RemoteMouse", "❌ Échec: ${e.message}")
+                Log.e("RemoteMouse", "Connection failed: ${e.message}")
                 isConnected = false
                 isConnecting = false
                 runOnUiThread {
                     val msg = when {
-                        e.message?.contains("timed out") == true -> "Délai dépassé — Serveur démarré ?"
-                        e.message?.contains("refused") == true -> "Connexion refusée — Même Wi-Fi ?"
-                        else -> "Erreur: ${e.message}"
+                        e.message?.contains("timed out") == true -> "Timeout — Server running?"
+                        e.message?.contains("refused") == true -> "Connection refused — Same Wi-Fi?"
+                        else -> "Error: ${e.message}"
                     }
                     onConnectionFailed?.invoke(msg)
                 }

@@ -6,7 +6,6 @@ pluginManagement {
     }
 }
 
-# ✅ BLOC MANQUANT — OÙ TÉLÉCHARGER LES DÉPENDANCES !
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
