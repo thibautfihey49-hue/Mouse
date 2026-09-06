@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -37,9 +39,12 @@ class MainActivity : AppCompatActivity() {
     private var outputStream: OutputStream? = null
     private var inputStream: InputStream? = null
     private var isServer = false
+    private var isManuallyDisconnected = false
     private var job: Job? = null
     private var readingJob: Job? = null
+    private var keepAliveJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val handler = Handler(Looper.getMainLooper())
     
     private var lastTouchX = 0f
     private var lastTouchY = 0f
@@ -60,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         
         btnServer.setOnClickListener { startServer() }
         btnConnect.setOnClickListener { showDevices() }
-        btnDisconnect.setOnClickListener { disconnect() }
+        btnDisconnect.setOnClickListener { manualDisconnect() }
         btnClick.setOnClickListener { sendCommand("CLICK\n") }
         
         setupTouchpad()
@@ -146,44 +151,76 @@ class MainActivity : AppCompatActivity() {
         }
         
         isServer = true
+        isManuallyDisconnected = false
         updateUI(true, true)
         startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300))
         
         tvStatus.text = "⏳ Serveur en écoute...\nNom: ${btAdapter?.name}"
         
         job = scope.launch {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                    return@launch
-                
-                val serverSocket = btAdapter?.listenUsingRfcommWithServiceRecord("Mouse", BT_UUID)
-                Log.d(TAG, "Serveur: en attente de connexion...")
-                
-                val clientSocket = serverSocket?.accept()
-                Log.d(TAG, "Serveur: connexion acceptée !")
-                serverSocket?.close()
-                
-                clientSocket?.let {
-                    socket = it
-                    val device = it.remoteDevice
-                    outputStream = it.outputStream
-                    inputStream = it.inputStream
+            while (isActive && !isManuallyDisconnected) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                        checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                        return@launch
                     
-                    Log.d(TAG, "Connecté à: ${device.name}")
+                    val serverSocket = btAdapter?.listenUsingRfcommWithServiceRecord("Mouse", BT_UUID)
+                    Log.d(TAG, "Serveur: en attente de connexion...")
                     
-                    runOnUiThread {
-                        tvStatus.text = "✅ CONNECTÉ À ${device.name}\n\n🖱️ Déplacez votre doigt !"
-                        updateUI(true, false)
+                    val clientSocket = serverSocket?.accept()
+                    serverSocket?.close()
+                    
+                    clientSocket?.let {
+                        socket = it
+                        val device = it.remoteDevice
+                        outputStream = it.outputStream
+                        inputStream = it.inputStream
+                        
+                        Log.d(TAG, "✅ Connecté à: ${device.name}")
+                        
+                        runOnUiThread {
+                            tvStatus.text = "✅ CONNECTÉ À ${device.name}\n\n🖱️ Déplacez votre doigt !"
+                            updateUI(true, false)
+                        }
+                        
+                        startKeepAlive()
+                        startReading()
+                        
+                        // Attendre déconnexion
+                        while (socket?.isConnected == true && !isManuallyDisconnected) {
+                            delay(500)
+                        }
+                        
+                        if (!isManuallyDisconnected) {
+                            Log.d(TAG, "🔌 Connexion perdue — Reconnexion dans 2s...")
+                            cleanupConnection()
+                            runOnUiThread {
+                                tvStatus.text = "🔌 Connexion perdue\n⏳ Reconnexion automatique..."
+                            }
+                            delay(2000)
+                        }
                     }
-                    
-                    startReading()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Serveur erreur: ${e.message}")
+                    if (!isManuallyDisconnected) {
+                        delay(1500)
+                    }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Serveur erreur: ${e.message}", e)
-                runOnUiThread {
-                    tvStatus.text = "❌ Erreur: ${e.message}"
-                    resetUI()
+            }
+        }
+    }
+
+    private fun startKeepAlive() {
+        keepAliveJob?.cancel()
+        keepAliveJob = scope.launch {
+            while (isActive && socket?.isConnected == true) {
+                try {
+                    outputStream?.write("PING\n".toByteArray())
+                    outputStream?.flush()
+                    delay(15000) // Envoyer un PING toutes les 15s
+                } catch (e: Exception) {
+                    Log.d(TAG, "KeepAlive échoué: ${e.message}")
+                    break
                 }
             }
         }
@@ -196,38 +233,43 @@ class MainActivity : AppCompatActivity() {
                 val buffer = ByteArray(1024)
                 var accumulated = ""
                 
-                while (isActive && socket?.isConnected == true) {
+                while (isActive && socket?.isConnected == true && !isManuallyDisconnected) {
                     val bytes = inputStream?.read(buffer) ?: -1
                     
                     if (bytes == -1) {
-                        Log.w(TAG, "Lecture retourne -1 = socket fermée")
+                        Log.w(TAG, "Socket fermée par l'autre appareil")
                         break
                     }
                     
                     if (bytes > 0) {
                         val chunk = String(buffer, 0, bytes)
                         accumulated += chunk
-                        Log.d(TAG, "Reçu brut: '$chunk'")
                         
                         while (accumulated.contains("\n")) {
                             val lineEnd = accumulated.indexOf("\n")
                             val line = accumulated.substring(0, lineEnd).trim()
                             accumulated = accumulated.substring(lineEnd + 1)
                             
-                            if (line.isNotEmpty()) {
-                                Log.d(TAG, "→ TRAITEMENT: '$line'")
-                                InputDispatcher.handleCommand(line)
+                            when {
+                                line.isEmpty() -> {}
+                                line == "PING" -> Log.d(TAG, "PING reçu")
+                                else -> {
+                                    Log.d(TAG, "→ Commande: '$line'")
+                                    InputDispatcher.handleCommand(line)
+                                }
                             }
                         }
                     }
                 }
                 Log.d(TAG, "Boucle de lecture terminée")
             } catch (e: Exception) {
-                Log.e(TAG, "Erreur lecture: ${e.message}", e)
+                Log.e(TAG, "Erreur lecture: ${e.message}")
             } finally {
-                runOnUiThread {
-                    tvStatus.text = "❌ Connexion perdue"
-                    resetUI()
+                if (!isManuallyDisconnected) {
+                    runOnUiThread {
+                        tvStatus.text = "🔌 Connexion perdue\n⏳ Reconnexion..."
+                    }
+                    cleanupConnection()
                 }
             }
         }
@@ -255,33 +297,65 @@ class MainActivity : AppCompatActivity() {
 
     private fun connectTo(device: BluetoothDevice) {
         isServer = false
+        isManuallyDisconnected = false
         updateUI(true, true)
         tvStatus.text = "🔌 Connexion à ${device.name}..."
         
         scope.launch {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            var retryCount = 0
+            val maxRetries = 5
+            
+            while (retryCount < maxRetries && !isManuallyDisconnected) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                        checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                        return@launch
+                    
+                    socket = device.createRfcommSocketToServiceRecord(BT_UUID)
+                    socket?.connect()
+                    
+                    outputStream = socket?.outputStream
+                    inputStream = socket?.inputStream
+                    
+                    Log.d(TAG, "✅ Client connecté ! Tentative ${retryCount+1}")
+                    
+                    runOnUiThread {
+                        tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplacez votre doigt sur le pavé"
+                        updateUI(true, false)
+                    }
+                    
+                    startKeepAlive()
+                    startReading()
+                    
+                    // Surveiller la connexion
+                    while (socket?.isConnected == true && !isManuallyDisconnected) {
+                        delay(500)
+                    }
+                    
+                    if (!isManuallyDisconnected) {
+                        Log.d(TAG, "🔌 Connexion perdue — Reconnexion...")
+                        cleanupConnection()
+                        retryCount++
+                        runOnUiThread {
+                            tvStatus.text = "🔌 Connexion perdue\n⏳ Reconnexion ${retryCount}/${maxRetries}..."
+                        }
+                        delay(2000)
+                    }
                     return@launch
-                
-                socket = device.createRfcommSocketToServiceRecord(BT_UUID)
-                socket?.connect()
-                
-                outputStream = socket?.outputStream
-                inputStream = socket?.inputStream
-                
-                Log.d(TAG, "Client: connecté ! Flux prêts")
-                
-                runOnUiThread {
-                    tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplacez votre doigt sur le pavé"
-                    updateUI(true, false)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Connexion échouée (${retryCount+1}/${maxRetries}): ${e.message}")
+                    retryCount++
+                    cleanupConnection()
+                    runOnUiThread {
+                        tvStatus.text = "❌ ÉCHEC ${retryCount}/${maxRetries}:\n${e.message}\n\nNouvelle tentative..."
+                    }
+                    delay(1500)
                 }
-                
-                startReading()
-            } catch (e: Exception) {
-                Log.e(TAG, "Connexion échouée: ${e.message}", e)
+            }
+            
+            if (retryCount >= maxRetries) {
                 runOnUiThread {
-                    tvStatus.text = "❌ ÉCHEC: ${e.message}"
+                    tvStatus.text = "❌ Impossible de se connecter\n\nVérifie que le serveur est démarré"
                     resetUI()
                 }
             }
@@ -290,7 +364,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendCommand(cmd: String) {
         if (outputStream == null || socket?.isConnected != true) {
-            Toast.makeText(this, "Pas connecté", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Pas connecté — attendez reconnexion...", Toast.LENGTH_SHORT).show()
             return
         }
         try {
@@ -299,30 +373,31 @@ class MainActivity : AppCompatActivity() {
             Log.d(TAG, "Envoyé: ${cmd.trim()}")
         } catch (e: Exception) {
             Log.e(TAG, "Envoi échoué: ${e.message}")
-            disconnect()
         }
     }
 
-    private fun disconnect() {
+    private fun cleanupConnection() {
+        keepAliveJob?.cancel()
         readingJob?.cancel()
-        job?.cancel()
-        scope.launch {
-            try {
-                inputStream?.close()
-                outputStream?.close()
-                socket?.close()
-            } catch (e: Exception) {}
-            inputStream = null
-            outputStream = null
-            socket = null
-            runOnUiThread {
-                tvStatus.text = "🔌 Déconnecté"
-                resetUI()
-            }
-        }
+        try {
+            inputStream?.close()
+            outputStream?.close()
+            socket?.close()
+        } catch (e: Exception) {}
+        inputStream = null
+        outputStream = null
+        socket = null
     }
 
-    private fun resetUI() { updateUI(false, false); isServer = false; job?.cancel(); readingJob?.cancel() }
+    private fun manualDisconnect() {
+        isManuallyDisconnected = true
+        job?.cancel()
+        cleanupConnection()
+        tvStatus.text = "🔌 Déconnecté"
+        resetUI()
+    }
+
+    private fun resetUI() { updateUI(false, false); isServer = false; }
     private fun updateUI(connected: Boolean, connecting: Boolean = false) {
         btnServer.isEnabled = !connected && !connecting
         btnConnect.isEnabled = !connected && !connecting
@@ -343,12 +418,10 @@ class MainActivity : AppCompatActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        readingJob?.cancel()
+        isManuallyDisconnected = true
         job?.cancel()
-        try {
-            inputStream?.close()
-            outputStream?.close()
-            socket?.close()
-        } catch (e: Exception) {}
+        keepAliveJob?.cancel()
+        readingJob?.cancel()
+        cleanupConnection()
     }
 }
