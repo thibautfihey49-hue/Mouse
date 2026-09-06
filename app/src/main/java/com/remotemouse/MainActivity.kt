@@ -15,6 +15,7 @@ import kotlinx.coroutines.*
 import java.io.*
 import java.net.*
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "WiFiMouse"
@@ -33,16 +34,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvDebug: TextView
     
     private var serverSocket: ServerSocket? = null
-    private var socket: Socket? = null
-    private var output: OutputStream? = null
-    private var input: InputStream? = null
+    private var clientSocket: Socket? = null
+    private var output: PrintWriter? = null
+    private var input: BufferedReader? = null
     private var udpSocket: DatagramSocket? = null
-    private var isServer = false
-    private var isRunning = false
-    private var job: Job? = null
+    
+    private val isServerMode = AtomicBoolean(false)
+    private val isRunning = AtomicBoolean(false)
+    private val connected = AtomicBoolean(false)
+    
+    private var serverJob: Job? = null
+    private var clientJob: Job? = null
     private var readJob: Job? = null
     private var udpJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
     private var lastTouchX = 0f
     private var lastTouchY = 0f
@@ -81,10 +87,6 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, msg)
         runOnUiThread {
             tvDebug.append("$msg\n")
-            val scroll = tvDebug.layout
-            if (scroll != null) {
-                tvDebug.scrollTo(0, scroll.height)
-            }
         }
     }
 
@@ -117,8 +119,8 @@ class MainActivity : AppCompatActivity() {
                         cursorX = cursorX.coerceIn(10f, 600f)
                         cursorY = cursorY.coerceIn(10f, 400f)
                         runOnUiThread {
-                            cursor.x = cursorX
-                            cursor.y = cursorY
+                            cursor.translationX = cursorX
+                            cursor.translationY = cursorY
                         }
                         lastTouchX = event.x
                         lastTouchY = event.y
@@ -136,8 +138,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        isServer = true
-        isRunning = true
+        isServerMode.set(true)
+        isRunning.set(true)
         updateUI(true, true)
         tvDebug.text = ""
         
@@ -145,18 +147,18 @@ class MainActivity : AppCompatActivity() {
         val deviceName = Build.MODEL ?: "Serveur"
         
         tvStatus.text = "🟡 SERVEUR EN ÉCOUTE\n\n📱 Appareil: $deviceName\n🌐 WiFi: $ip\n\nEn attente de connexion..."
-        debugLog("Serveur démarré sur $ip:$TCP_PORT")
+        debugLog("🚀 Serveur démarré sur $ip:$TCP_PORT")
         
-        job = scope.launch {
+        serverJob = scope.launch {
             try {
                 serverSocket = ServerSocket(TCP_PORT)
-                serverSocket?.soTimeout = 0
+                serverSocket!!.soTimeout = 0
                 startUdpBroadcaster(deviceName, ip)
                 
-                while (isRunning) {
+                while (isRunning.get()) {
                     try {
-                        debugLog("En attente d'un client...")
-                        val client = serverSocket?.accept() ?: break
+                        debugLog("⏳ En attente d'un client...")
+                        val client = serverSocket!!.accept()
                         debugLog("✅ Client connecté: ${client.inetAddress}")
                         
                         runOnUiThread {
@@ -165,20 +167,14 @@ class MainActivity : AppCompatActivity() {
                             tvFound.text = ""
                         }
                         
-                        socket = client
-                        output = client.getOutputStream()
-                        input = client.getInputStream()
+                        setupConnection(client)
+                        startReadingLoop()
                         
-                        // Envoyer un ping de test
-                        sendCommand("PING")
-                        
-                        startReading()
-                        
-                        while (isRunning && socket?.isConnected == true) {
-                            delay(500)
+                        while (isRunning.get() && connected.get()) {
+                            delay(1000)
                         }
                         
-                        if (isRunning) {
+                        if (isRunning.get()) {
                             debugLog("🔌 Client déconnecté — Réécoute...")
                             cleanupConnection()
                             runOnUiThread {
@@ -186,12 +182,14 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     } catch (e: Exception) {
-                        debugLog("Erreur accept: ${e.message}")
-                        if (isRunning) delay(1000)
+                        if (isRunning.get()) {
+                            debugLog("⚠️ Erreur accept: ${e.message}")
+                            delay(1000)
+                        }
                     }
                 }
             } catch (e: Exception) {
-                debugLog("ERREUR Serveur: ${e.message}")
+                debugLog("❌ ERREUR Serveur: ${e.message}")
                 runOnUiThread {
                     tvStatus.text = "❌ Erreur: ${e.message}"
                     resetUI()
@@ -200,18 +198,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupConnection(sock: Socket) {
+        clientSocket = sock
+        connected.set(true)
+        output = PrintWriter(BufferedWriter(OutputStreamWriter(sock.getOutputStream(), StandardCharsets.UTF_8)), true)
+        input = BufferedReader(InputStreamReader(sock.getInputStream(), StandardCharsets.UTF_8))
+        debugLog("🔗 Connexion établie — flux initialisés")
+    }
+
     private fun startUdpBroadcaster(name: String, ip: String) {
         udpJob?.cancel()
         udpJob = scope.launch {
             try {
                 udpSocket = DatagramSocket(UDP_PORT)
-                udpSocket?.broadcast = true
+                udpSocket!!.broadcast = true
                 val buffer = ByteArray(1024)
                 
-                while (isRunning) {
+                while (isRunning.get()) {
                     try {
                         val packet = DatagramPacket(buffer, buffer.size)
-                        udpSocket?.receive(packet)
+                        udpSocket!!.receive(packet)
                         val msg = String(packet.data, 0, packet.length, StandardCharsets.UTF_8).trim()
                         
                         if (msg == BROADCAST_MSG) {
@@ -220,32 +226,29 @@ class MainActivity : AppCompatActivity() {
                             val senderAddr = packet.address
                             val senderPort = packet.port
                             
-                            val responsePacket = DatagramPacket(
-                                responseBytes, responseBytes.size,
-                                senderAddr, senderPort
-                            )
-                            udpSocket?.send(responsePacket)
-                            debugLog("📤 Répondu à la découverte depuis $senderAddr")
+                            val responsePacket = DatagramPacket(responseBytes, responseBytes.size, senderAddr, senderPort)
+                            udpSocket!!.send(responsePacket)
+                            debugLog("📤 Répondu à ${senderAddr.hostName}")
                         }
                     } catch (e: Exception) {
-                        if (isRunning) delay(500)
+                        if (isRunning.get()) delay(500)
                     }
                 }
             } catch (e: Exception) {
-                debugLog("UDP Erreur: ${e.message}")
+                debugLog("⚠️ UDP Erreur: ${e.message}")
             }
         }
     }
 
     private fun scanAndConnect() {
-        isServer = false
-        isRunning = true
+        isServerMode.set(false)
+        isRunning.set(true)
         updateUI(true, true)
-        tvStatus.text = "🔍 RECHERCHE DU SERVEUR...\n\nRecherche en cours..."
+        tvStatus.text = "🔍 RECHERCHE DU SERVEUR..."
         tvFound.text = ""
         tvDebug.text = ""
         
-        scope.launch {
+        clientJob = scope.launch {
             val foundServers = mutableListOf<DiscoveredServer>()
             
             try {
@@ -255,32 +258,29 @@ class MainActivity : AppCompatActivity() {
                 wifiLock.acquire()
                 
                 udpSocket = DatagramSocket()
-                udpSocket?.soTimeout = 3000
+                udpSocket!!.soTimeout = 3000
                 
                 val broadcastAddr = getBroadcastAddress()
                 val discoverMsg = BROADCAST_MSG.toByteArray(StandardCharsets.UTF_8)
                 
-                debugLog("🔍 Envoi de la découverte à $broadcastAddr:$UDP_PORT")
+                debugLog("🔍 Recherche sur $broadcastAddr:$UDP_PORT")
                 
                 repeat(3) {
-                    val packet = DatagramPacket(
-                        discoverMsg, discoverMsg.size,
-                        InetAddress.getByName(broadcastAddr), UDP_PORT
-                    )
-                    udpSocket?.send(packet)
+                    val packet = DatagramPacket(discoverMsg, discoverMsg.size, InetAddress.getByName(broadcastAddr), UDP_PORT)
+                    udpSocket!!.send(packet)
                     delay(500)
                 }
                 
                 val startTime = System.currentTimeMillis()
                 val buffer = ByteArray(1024)
                 
-                while (System.currentTimeMillis() - startTime < 5000 && isRunning) {
+                while (System.currentTimeMillis() - startTime < 5000 && isRunning.get()) {
                     try {
                         val responsePacket = DatagramPacket(buffer, buffer.size)
-                        udpSocket?.receive(responsePacket)
+                        udpSocket!!.receive(responsePacket)
                         val response = String(responsePacket.data, 0, responsePacket.length, StandardCharsets.UTF_8).trim()
                         
-                        debugLog("📩 Réponse reçue: $response")
+                        debugLog("📩 Réponse: $response")
                         
                         val parts = response.split("|")
                         if (parts.size == 3) {
@@ -295,21 +295,21 @@ class MainActivity : AppCompatActivity() {
                     } catch (e: SocketTimeoutException) {
                         break
                     } catch (e: Exception) {
-                        debugLog("Erreur réception: ${e.message}")
+                        debugLog("⚠️ Erreur réception: ${e.message}")
                     }
                 }
                 
                 wifiLock.release()
-                udpSocket?.close()
+                udpSocket!!.close()
                 
                 if (foundServers.isEmpty()) {
                     runOnUiThread {
-                        tvStatus.text = "❌ AUCUN SERVEUR TROUVÉ\n\n• Les 2 appareils sont-ils au MÊME WiFi ?\n• Le serveur est-il démarré ?"
+                        tvStatus.text = "❌ AUCUN SERVEUR TROUVÉ"
                         resetUI()
                     }
                 } else if (foundServers.size == 1) {
                     val server = foundServers[0]
-                    debugLog("✅ Un seul serveur trouvé, connexion auto à ${server.address}")
+                    debugLog("✅ Connexion auto à ${server.address}:${server.port}")
                     connectTo(server.address, server.port)
                 } else {
                     runOnUiThread {
@@ -321,19 +321,18 @@ class MainActivity : AppCompatActivity() {
                                 scope.launch { connectTo(srv.address, srv.port) }
                             }
                             .setOnDismissListener {
-                                if (socket?.isConnected != true) {
+                                if (!connected.get()) {
                                     resetUI()
                                     tvStatus.text = "🔍 Recherche annulée"
                                 }
                             }
                             .show()
-                        tvStatus.text = "✅ ${foundServers.size} appareil(s) trouvé(s)"
                     }
                 }
             } catch (e: Exception) {
-                debugLog("Erreur scan: ${e.message}")
+                debugLog("❌ Erreur scan: ${e.message}")
                 runOnUiThread {
-                    tvStatus.text = "❌ Erreur recherche: ${e.message}"
+                    tvStatus.text = "❌ Erreur: ${e.message}"
                     resetUI()
                 }
             }
@@ -345,47 +344,38 @@ class MainActivity : AppCompatActivity() {
         val dhcpInfo = wifiMgr.dhcpInfo
         val ip = dhcpInfo.ipAddress
         val mask = dhcpInfo.netmask
-        
         val broadcast = ip or mask.inv()
-        return String.format(
-            "%d.%d.%d.%d",
-            broadcast and 0xFF,
-            broadcast shr 8 and 0xFF,
-            broadcast shr 16 and 0xFF,
-            broadcast shr 24 and 0xFF
-        )
+        return String.format("%d.%d.%d.%d", broadcast and 0xFF, broadcast shr 8 and 0xFF, broadcast shr 16 and 0xFF, broadcast shr 24 and 0xFF)
     }
 
     private suspend fun connectTo(ip: String, port: Int) {
         try {
             runOnUiThread {
                 tvStatus.text = "🔌 Connexion à $ip..."
-                tvDebug.text = ""
             }
             
-            socket = Socket()
-            socket?.tcpNoDelay = true  // ✅ DÉSACTIVE LE BUFFERING — IMMÉDIAT !
-            socket?.keepAlive = true
-            socket?.connect(InetSocketAddress(ip, port), 10000)
+            val sock = Socket()
+            sock.tcpNoDelay = true
+            sock.keepAlive = true
+            sock.connect(InetSocketAddress(ip, port), 10000)
             
-            output = socket?.getOutputStream()
-            input = socket?.getInputStream()
+            setupConnection(sock)
+            debugLog("✅ Connecté à $ip:$port")
             
-            debugLog("✅ Connecté au serveur $ip")
             runOnUiThread {
                 tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Déplacez votre doigt sur le pavé"
                 updateUI(true, false)
                 tvFound.text = ""
             }
             
-            startReading()
+            startReadingLoop()
             
-            while (isRunning && socket?.isConnected == true) {
-                delay(500)
+            while (isRunning.get() && connected.get()) {
+                delay(1000)
             }
             
-            if (isRunning) {
-                debugLog("🔌 Déconnecté du serveur")
+            if (isRunning.get()) {
+                debugLog("🔌 Déconnecté")
                 runOnUiThread {
                     tvStatus.text = "🔌 Déconnecté\nRecherchez à nouveau..."
                     resetUI()
@@ -394,60 +384,44 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             debugLog("❌ Connexion échouée: ${e.message}")
             runOnUiThread {
-                tvStatus.text = "❌ ÉCHEC DE CONNEXION\n\n${e.message}"
+                tvStatus.text = "❌ ÉCHEC: ${e.message}"
                 resetUI()
             }
         }
     }
 
-    private fun startReading() {
+    private fun startReadingLoop() {
         readJob?.cancel()
         readJob = scope.launch {
+            debugLog("📖 Boucle de lecture DÉMARRÉE")
             try {
-                debugLog("📖 Boucle de lecture démarrée")
-                val buffer = ByteArray(1024)
-                var accumulated = StringBuilder()
-                
-                while (isRunning && socket?.isConnected == true) {
+                while (isRunning.get() && connected.get() && input != null) {
                     try {
-                        val bytesRead = input?.read(buffer) ?: -1
-                        
-                        if (bytesRead == -1) {
-                            debugLog("🔌 Flux fermé par l'autre appareil")
+                        val line = input!!.readLine()
+                        if (line == null) {
+                            debugLog("🔌 Ligne NULL = connexion fermée par l'autre appareil")
                             break
                         }
-                        
-                        if (bytesRead > 0) {
-                            val chunk = String(buffer, 0, bytesRead, StandardCharsets.UTF_8)
-                            accumulated.append(chunk)
-                            debugLog("📥 Reçu brut: '$chunk'")
-                            
-                            // Traiter chaque ligne complète
-                            while (accumulated.contains("\n")) {
-                                val lineEnd = accumulated.indexOf("\n")
-                                val line = accumulated.substring(0, lineEnd).trim()
-                                accumulated.delete(0, lineEnd + 1)
-                                
-                                if (line.isNotEmpty()) {
-                                    debugLog("✅ Commande: '$line'")
-                                    InputDispatcher.handleCommand(line)
-                                }
-                            }
+                        if (line.isNotEmpty()) {
+                            debugLog("📥 Commande reçue: '$line'")
+                            InputDispatcher.handleCommand(line)
                         }
                     } catch (e: Exception) {
-                        debugLog("❌ Erreur lecture: ${e.message}")
-                        delay(100)
+                        debugLog("⚠️ Erreur lecture: ${e.message}")
+                        delay(200)
                     }
                 }
-                debugLog("📖 Boucle de lecture terminée")
             } catch (e: Exception) {
-                debugLog("❌ Erreur lecture globale: ${e.message}")
+                debugLog("❌ Erreur lecture boucle: ${e.message}")
+            } finally {
+                debugLog("📖 Boucle de lecture TERMINÉE")
+                connected.set(false)
             }
         }
     }
 
     private fun sendCommand(msg: String) {
-        if (output == null || socket?.isConnected != true) {
+        if (!connected.get() || output == null) {
             debugLog("❌ Pas connecté — impossible d'envoyer")
             runOnUiThread {
                 Toast.makeText(this, "Pas connecté", Toast.LENGTH_SHORT).show()
@@ -455,11 +429,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
         try {
-            val fullMsg = "$msg\n"
-            val bytes = fullMsg.toByteArray(StandardCharsets.UTF_8)
-            output?.write(bytes)
-            output?.flush()  // ✅ TRÈS IMPORTANT — ENVOIE TOUT DE SUITE !
-            debugLog("📤 Envoyé: '$msg' (${bytes.size} octets)")
+            output!!.println(msg)
+            output!!.flush()
+            debugLog("📤 Envoyé: '$msg'")
         } catch (e: Exception) {
             debugLog("❌ Envoi échoué: ${e.message}")
             runOnUiThread {
@@ -470,26 +442,31 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun cleanupConnection() {
+        connected.set(false)
         readJob?.cancel()
         try {
             input?.close()
             output?.close()
-            socket?.close()
+            clientSocket?.close()
         } catch (e: Exception) {
-            debugLog("Erreur fermeture: ${e.message}")
+            debugLog("⚠️ Erreur fermeture: ${e.message}")
         }
         input = null
         output = null
-        socket = null
+        clientSocket = null
     }
 
     private fun disconnect() {
-        isRunning = false
-        job?.cancel()
+        isRunning.set(false)
+        connected.set(false)
+        serverJob?.cancel()
+        clientJob?.cancel()
         udpJob?.cancel()
         readJob?.cancel()
-        serverSocket?.close()
-        udpSocket?.close()
+        try {
+            serverSocket?.close()
+            udpSocket?.close()
+        } catch (e: Exception) {}
         cleanupConnection()
         tvStatus.text = "🔌 Déconnecté"
         tvFound.text = ""
@@ -498,12 +475,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetUI() { updateUI(false, false) }
-    private fun updateUI(connected: Boolean, connecting: Boolean = false) {
-        btnServer.isEnabled = !connected && !connecting
-        btnScan.isEnabled = !connected && !connecting
-        btnDisconnect.isEnabled = connected
-        touchpad.isEnabled = connected
-        btnClick.isEnabled = connected
+    private fun updateUI(connectedState: Boolean, connecting: Boolean = false) {
+        btnServer.isEnabled = !connectedState && !connecting
+        btnScan.isEnabled = !connectedState && !connecting
+        btnDisconnect.isEnabled = connectedState
+        touchpad.isEnabled = connectedState
+        btnClick.isEnabled = connectedState
     }
 
     private fun isAccessibilityOn(): Boolean {
@@ -513,12 +490,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false
-        job?.cancel()
-        udpJob?.cancel()
-        readJob?.cancel()
-        serverSocket?.close()
-        udpSocket?.close()
-        cleanupConnection()
+        disconnect()
     }
 }
