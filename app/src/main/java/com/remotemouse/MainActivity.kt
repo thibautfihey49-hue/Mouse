@@ -165,16 +165,28 @@ class MainActivity : AppCompatActivity() {
                         debugLog("✅ Client connecté: ${client.inetAddress}")
                         
                         runOnUiThread {
-                            tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Utilisez le pavé tactile !"
+                            tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ En attente des commandes..."
                             updateUI(true, false)
                             tvFound.text = ""
                         }
                         
                         setupConnection(client)
+                        
+                        // ✅ LE SERVEUR DOIT LIRE EN PERMANENCE — SINON LA CONNEXION SE COUPE !
                         startReadingLoop()
                         
-                        while (isRunning.get() && connected.get()) {
-                            delay(1000)
+                        // ✅ GARDE LA CONNEXION OUVERTE TANT QUE LE CLIENT EST LÀ
+                        while (isRunning.get() && connected.get() && !client.isClosed) {
+                            delay(500)
+                            // Envoyer un PING pour garder la connexion vive
+                            if (connected.get() && output != null) {
+                                try {
+                                    output!!.flush()
+                                } catch (e: Exception) {
+                                    debugLog("⚠️ Flush échoué: ${e.message}")
+                                    break
+                                }
+                            }
                         }
                         
                         if (isRunning.get()) {
@@ -375,8 +387,10 @@ class MainActivity : AppCompatActivity() {
             
             startReadingLoop()
             
-            while (isRunning.get() && connected.get()) {
-                delay(1000)
+            // ✅ GARDE LA CONNEXION OUVERTE
+            while (isRunning.get() && connected.get() && !sock.isClosed) {
+                delay(500)
+                output?.flush()
             }
             
             if (isRunning.get()) {
@@ -425,15 +439,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ FONCTION SÉCURISÉE — PLUS JAMAIS "Envoi null" !
     private fun sendCommandSafe(msg: String): Boolean {
         val currentOutput = output
         val isConn = connected.get()
         
-        debugLog("📤 Tentative envoi: '$msg' | connecté=$isConn | output=${if (currentOutput != null) "OK" else "NULL"}")
+        debugLog("📤 Envoi: '$msg' | connecté=$isConn | output=${if (currentOutput != null) "OK" else "NULL"}")
         
         if (!isConn || currentOutput == null) {
-            debugLog("❌ ENVOI ANNULÉ: Non connecté ou flux null")
+            debugLog("❌ ANNULÉ: Non connecté")
             runOnUiThread {
                 Toast.makeText(this, "⏳ En attente de connexion...", Toast.LENGTH_SHORT).show()
             }
@@ -442,16 +455,18 @@ class MainActivity : AppCompatActivity() {
         
         return try {
             currentOutput.println(msg)
-            currentOutput.flush()
-            if (currentOutput.checkError()) {
-                debugLog("❌ Erreur d'envoi (checkError=true)")
+            val error = currentOutput.checkError()
+            if (error) {
+                debugLog("❌ ERREUR: checkError=true — Socket coupé")
+                connected.set(false)
                 false
             } else {
                 debugLog("✅ ENVOYÉ: '$msg'")
                 true
             }
         } catch (e: Exception) {
-            debugLog("❌ EXCEPTION ENVOI: ${e.message}")
+            debugLog("❌ EXCEPTION: ${e.message}")
+            connected.set(false)
             runOnUiThread {
                 Toast.makeText(this, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -474,7 +489,7 @@ class MainActivity : AppCompatActivity() {
             output = null
             clientSocket = null
         }
-        debugLog("🧹 Connexion nettoyée — flux null maintenant")
+        debugLog("🧹 Connexion nettoyée")
     }
 
     private fun disconnect() {

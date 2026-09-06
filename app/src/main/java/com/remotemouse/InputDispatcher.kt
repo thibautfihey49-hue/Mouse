@@ -1,66 +1,87 @@
 package com.remotemouse
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.os.Build
 import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import kotlin.math.roundToInt
 
 object InputDispatcher {
-    var service: AccessibilityInputService? = null
-    private var posX = -1f
-    private var posY = -1f
-    private val TAG = "MouseInput"
+    private const val TAG = "InputDispatcher"
+    private var service: AccessibilityService? = null
     
-    fun initPosition(svc: AccessibilityService) {
-        val dm = svc.resources.displayMetrics
-        posX = dm.widthPixels / 2f
-        posY = dm.heightPixels / 2f
-        Log.d(TAG, "Position initiale: $posX x $posY")
+    fun attachService(svc: AccessibilityService) {
+        service = svc
+        Log.d(TAG, "✅ Service Accessibility attaché")
     }
-
+    
     fun handleCommand(cmd: String) {
-        Log.d(TAG, "📥 Reçu: $cmd")
-        val svc = service ?: run {
-            Log.e(TAG, "❌ Service NULL ! Active l'accessibilité !")
-            return
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            Log.e(TAG, "❌ Besoin d'Android 7.0+")
-            return
-        }
-        if (posX < 0) initPosition(svc)
-        
         val parts = cmd.split("|")
+        if (parts.isEmpty()) return
+        
         when (parts[0]) {
             "MOVE" -> {
-                val dx = parts.getOrNull(1)?.toFloatOrNull() ?: 0f
-                val dy = parts.getOrNull(2)?.toFloatOrNull() ?: 0f
-                move(svc, dx, dy)
+                if (parts.size >= 3) {
+                    val dx = parts[1].toFloatOrNull() ?: 0f
+                    val dy = parts[2].toFloatOrNull() ?: 0f
+                    performMove(dx, dy)
+                }
             }
-            "CLICK" -> click(svc)
+            "CLICK" -> performClick()
+            "SCROLL_UP" -> performScroll(3)
+            "SCROLL_DOWN" -> performScroll(-3)
         }
     }
-
-    private fun move(svc: AccessibilityService, dx: Float, dy: Float) {
-        val dm = svc.resources.displayMetrics
-        val speed = 2.8f
-        posX = (posX + dx * speed).coerceIn(50f, dm.widthPixels - 50f)
-        posY = (posY + dy * speed).coerceIn(50f, dm.heightPixels - 50f)
-        
-        val path = Path().apply { moveTo(posX, posY) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 10))
-            .build()
-        svc.dispatchGesture(gesture, null, null)
+    
+    private fun performMove(dx: Float, dy: Float) {
+        val svc = service ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val display = svc.display
+                val centerX = display.width / 2f
+                val centerY = display.height / 2f
+                
+                val path = Path()
+                path.moveTo(centerX, centerY)
+                path.relativeMoveTo(dx, dy)
+                
+                svc.dispatchGesture(
+                    android.accessibilityservice.GestureDescription.Builder()
+                        .setStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 1))
+                        .build(),
+                    null, null
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur mouvement: ${e.message}")
+        }
     }
-
-    private fun click(svc: AccessibilityService) {
-        val path = Path().apply { moveTo(posX, posY) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 30))
-            .build()
-        svc.dispatchGesture(gesture, null, null)
-        Log.d(TAG, "👆 Clic à: $posX,$posY")
+    
+    private fun performClick() {
+        val svc = service ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val display = svc.display
+                val centerX = display.width / 2f
+                val centerY = display.height / 2f
+                
+                svc.dispatchGesture(
+                    android.accessibilityservice.GestureDescription.Builder()
+                        .setStroke(android.accessibilityservice.GestureDescription.StrokeDescription(
+                            Path().apply { moveTo(centerX, centerY) }, 0, 10
+                        ))
+                        .build(),
+                    null, null
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur clic: ${e.message}")
+        }
+    }
+    
+    private fun performScroll(amount: Int) {
+        Log.d(TAG, "Défilement: $amount")
     }
 }
