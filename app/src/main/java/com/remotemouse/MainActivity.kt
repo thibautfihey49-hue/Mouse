@@ -1,6 +1,7 @@
 package com.remotemouse
 
 import android.content.Context
+import android.content.Intent
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
@@ -128,13 +129,10 @@ class MainActivity : AppCompatActivity() {
         tvStatus.text = "🟡 SERVEUR EN ÉCOUTE\n\n📱 Appareil: $deviceName\n🌐 WiFi: $ip\n\nEn attente de connexion..."
         Log.d(TAG, "Serveur démarré sur $ip:$TCP_PORT")
         
-        // Démarrer le serveur TCP
         job = scope.launch {
             try {
                 serverSocket = ServerSocket(TCP_PORT)
                 serverSocket?.soTimeout = 0
-                
-                // Démarrer le broadcast UDP pour la découverte
                 startUdpBroadcaster(deviceName, ip)
                 
                 while (isRunning) {
@@ -227,22 +225,19 @@ class MainActivity : AppCompatActivity() {
             val foundServers = mutableListOf<DiscoveredServer>()
             
             try {
-                // Activer le multicast pour recevoir les broadcasts
                 val wifiMgr = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
                 val wifiLock = wifiMgr.createMulticastLock("WiFiMouse")
                 wifiLock.setReferenceCounted(true)
                 wifiLock.acquire()
                 
                 udpSocket = DatagramSocket()
-                udpSocket?.soTimeout = 3000 // 3 secondes de recherche
+                udpSocket?.soTimeout = 3000
                 
-                // Envoyer la demande de découverte en broadcast
                 val broadcastAddr = getBroadcastAddress()
                 val discoverMsg = BROADCAST_MSG.toByteArray()
                 
                 Log.d(TAG, "🔍 Envoi de la découverte à $broadcastAddr:$UDP_PORT")
                 
-                // Envoyer plusieurs fois pour être sûr
                 repeat(3) {
                     val packet = DatagramPacket(
                         discoverMsg, discoverMsg.size,
@@ -252,7 +247,6 @@ class MainActivity : AppCompatActivity() {
                     delay(500)
                 }
                 
-                // Écouter les réponses pendant 5 secondes max
                 val startTime = System.currentTimeMillis()
                 val buffer = ByteArray(1024)
                 
@@ -284,19 +278,16 @@ class MainActivity : AppCompatActivity() {
                 wifiLock.release()
                 udpSocket?.close()
                 
-                // Afficher les serveurs trouvés
                 if (foundServers.isEmpty()) {
                     runOnUiThread {
                         tvStatus.text = "❌ AUCUN SERVEUR TROUVÉ\n\n• Les 2 appareils sont-ils au MÊME WiFi ?\n• Le serveur est-il démarré ?"
                         resetUI()
                     }
                 } else if (foundServers.size == 1) {
-                    // Un seul serveur trouvé → connexion automatique
                     val server = foundServers[0]
                     Log.d(TAG, "✅ Un seul serveur trouvé, connexion auto à ${server.address}")
                     connectTo(server.address, server.port)
                 } else {
-                    // Plusieurs serveurs → choisir
                     runOnUiThread {
                         val names = foundServers.map { "${it.name}\n${it.address}" }.toTypedArray()
                         AlertDialog.Builder(this@MainActivity)
