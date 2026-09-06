@@ -42,7 +42,6 @@ class MainActivity : AppCompatActivity() {
     private val BLUETOOTH_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var socket: BluetoothSocket? = null
-    private var connectedDevice: BluetoothDevice? = null
     private var serverJob: Job? = null
     private var sender: OutputStreamWriter? = null
     private var isServer = false
@@ -122,7 +121,6 @@ class MainActivity : AppCompatActivity() {
         isServer = true
         updateUI(true, true)
         
-        // Rendre visible
         val discoverable = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
         discoverable.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
         startActivity(discoverable)
@@ -131,7 +129,11 @@ class MainActivity : AppCompatActivity() {
 
         serverJob = scope.launch {
             try {
-                checkPermission(Manifest.permission.BLUETOOTH_ADVERTISE, 124)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    ActivityCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Permission Bluetooth requise", Toast.LENGTH_SHORT).show() }
+                    return@launch
+                }
                 val serverSocket = bluetoothAdapter?.listenUsingRfcommWithServiceRecord("BluetoothMouse", BLUETOOTH_UUID)
                 val clientSocket = serverSocket?.accept()
                 serverSocket?.close()
@@ -139,30 +141,24 @@ class MainActivity : AppCompatActivity() {
                 clientSocket?.let {
                     socket = it
                     val device = it.remoteDevice
-                    connectedDevice = device
                     
                     runOnUiThread {
                         tvStatus.text = "✅ CONNECTÉ À : ${device.name}\n\nUtilise le pavé tactile !"
                         updateUI(true, false)
                     }
                     
-                    // Lire les commandes
                     val reader = BufferedReader(InputStreamReader(it.inputStream))
                     while (true) {
                         val cmd = reader.readLine() ?: break
                         Log.d("BluetoothMouse", "Reçu: $cmd")
-                        runOnUiThread {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                InputDispatcher.dispatchCommand(cmd)
-                            }
-                        }
+                        runOnUiThread { InputDispatcher.dispatchCommand(cmd) }
                     }
                 }
             } catch (e: Exception) {
                 Log.e("BluetoothMouse", "Serveur: ${e.message}")
                 runOnUiThread {
                     if (!isDestroyed) {
-                        tvStatus.text = "❌ Erreur serveur: ${e.message}"
+                        tvStatus.text = "❌ Erreur: ${e.message}"
                         resetUI()
                     }
                 }
@@ -171,13 +167,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPairedDevices() {
-        checkPermission(Manifest.permission.BLUETOOTH_CONNECT, 125)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
         val devices = bluetoothAdapter?.bondedDevices ?: emptySet()
         
         if (devices.isEmpty()) {
             Toast.makeText(this, "Aucun appareil associé\n→ Associe d'abord les 2 téléphones dans les paramètres Bluetooth", Toast.LENGTH_LONG).show()
-            val intent = Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
-            startActivity(intent)
+            startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
             return
         }
 
@@ -199,10 +197,12 @@ class MainActivity : AppCompatActivity() {
 
         scope.launch {
             try {
-                checkPermission(Manifest.permission.BLUETOOTH_CONNECT, 125)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    ActivityCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    return@launch
+                }
                 socket = device.createRfcommSocketToServiceRecord(BLUETOOTH_UUID)
                 socket?.connect()
-                
                 sender = OutputStreamWriter(socket?.outputStream, "UTF-8")
                 
                 runOnUiThread {
@@ -212,7 +212,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.e("BluetoothMouse", "Connexion: ${e.message}")
                 runOnUiThread {
-                    tvStatus.text = "❌ ÉCHEC\n\n• Le serveur est-il démarré ?\n• Les 2 appareils sont-ils associés en Bluetooth ?\n• Erreur: ${e.message}"
+                    tvStatus.text = "❌ ÉCHEC\n\n• Le serveur est-il démarré ?\n• Les 2 appareils sont-ils associés ?\n• Erreur: ${e.message}"
                     resetUI()
                 }
             }
@@ -268,13 +268,6 @@ class MainActivity : AppCompatActivity() {
         return enabled?.contains(packageName) == true
     }
 
-    private fun checkPermission(perm: String, code: Int) {
-        if (ActivityCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(perm), code)
-            throw SecurityException("Permission requise: $perm")
-        }
-    }
-
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 1001) {
@@ -298,19 +291,19 @@ class TouchpadView(context: android.content.Context, attrs: android.util.Attribu
     private var lastX = 0f
     private var lastY = 0f
     
-    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
-        when (e.action) {
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        when (event.action) {
             android.view.MotionEvent.ACTION_DOWN -> {
-                lastX = e.x
-                lastY = e.y
+                lastX = event.x
+                lastY = event.y
             }
             android.view.MotionEvent.ACTION_MOVE -> {
-                val dx = e.x - lastX
-                val dy = e.y - lastY
+                val dx = event.x - lastX
+                val dy = event.y - lastY
                 if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
                     onTouchListener?.invoke(dx, dy)
-                    lastX = e.x
-                    lastY = e.y
+                    lastX = event.x
+                    lastY = event.y
                 }
             }
         }

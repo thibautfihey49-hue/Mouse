@@ -32,8 +32,8 @@ object InputDispatcher {
         val targetX = (centerX + dx * 1.5f).coerceIn(50f, dm.widthPixels - 50f)
         val targetY = (centerY + dy * 1.5f).coerceIn(50f, dm.heightPixels - 50f)
         val path = Path().apply { moveTo(centerX, centerY); lineTo(targetX, targetY) }
-        svc.dispatchGesture(GestureDescription.Builder().addStroke(
-            GestureDescription.StrokeDescription(path, 0, 30)).build(), null, null)
+        val gesture = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 30)).build()
+        svc.dispatchGesture(gesture, null, null)
     }
 
     private fun performClick() {
@@ -43,12 +43,7 @@ object InputDispatcher {
         val x = dm.widthPixels / 2f
         val y = dm.heightPixels / 2f
         val path = Path().apply { moveTo(x, y) }
-        svc.dispatchGesture(GestureDescription.Builder().addStroke(
-            GestureDescription.StrokeDescription(path, 0, 10)).build(), null, null)
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            svc.dispatchGesture(GestureDescription.Builder().addStroke(
-                GestureDescription.StrokeDescription(path, 10, 10)).build(), null, null)
-        }, 50)
+        svc.dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 10)).build(), null, null)
     }
 
     private fun performRightClick() {
