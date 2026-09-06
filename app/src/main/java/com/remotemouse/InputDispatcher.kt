@@ -17,8 +17,7 @@ object InputDispatcher {
     
     fun attachService(svc: AccessibilityInputService) {
         service = svc
-        Log.d(TAG, "✅ Service attaché — TENTATIVE DE RÉCUPÉRATION ÉCRAN")
-        // Récupérer taille écran réelle
+        Log.d(TAG, "✅ Service attaché")
         val wm = svc.getSystemService(AccessibilityService.WINDOW_SERVICE) as WindowManager
         val display = wm.defaultDisplay
         val realSize = android.graphics.Point()
@@ -40,14 +39,10 @@ object InputDispatcher {
                 if (parts.size >= 3) {
                     val dx = parts[1].toFloatOrNull() ?: 0f
                     val dy = parts[2].toFloatOrNull() ?: 0f
-                    Log.d(TAG, "👉 MOVE: dx=$dx, dy=$dy")
                     performMove(dx, dy)
                 }
             }
-            "CLICK" -> {
-                Log.d(TAG, "👉 CLIC DEMANDÉ")
-                performClick()
-            }
+            "CLICK" -> performClick()
         }
     }
     
@@ -61,13 +56,10 @@ object InputDispatcher {
             return
         }
         
-        // Déplacer le curseur (pas un geste continu mais un point)
         currentX = (currentX + dx).coerceIn(50f, displayWidth - 50f)
         currentY = (currentY + dy).coerceIn(50f, displayHeight - 50f)
+        Log.d(TAG, "📍 Déplacement vers: ($currentX, $currentY)")
         
-        Log.d(TAG, "📍 Nouvelle position: ($currentX, $currentY)")
-        
-        // Geste de déplacement instantané
         val path = Path()
         path.moveTo(currentX, currentY)
         
@@ -75,9 +67,12 @@ object InputDispatcher {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 1))
             .build()
         
-        svc.dispatchGesture(gesture, object : GestureDescription.OnGestureCompleteCallback {
-            override fun onGestureComplete(p0: GestureDescription?, p1: Boolean) {
-                Log.d(TAG, p1.let { "✅ Geste déplacement RÉUSSI" } ?: "❌ Geste déplacement ÉCHOUÉ")
+        svc.dispatchGesture(gesture, object : GestureDescription.GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "✅ Geste déplacement RÉUSSI")
+            }
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "⚠️ Geste déplacement ANNULÉ")
             }
         }, null)
     }
@@ -101,9 +96,12 @@ object InputDispatcher {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
             .build()
         
-        svc.dispatchGesture(gesture, object : GestureDescription.OnGestureCompleteCallback {
-            override fun onGestureComplete(p0: GestureDescription?, success: Boolean) {
-                Log.d(TAG, if (success) "✅ CLIC RÉUSSI" else "❌ CLIC ÉCHOUÉ")
+        svc.dispatchGesture(gesture, object : GestureDescription.GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "✅ CLIC RÉUSSI")
+            }
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "⚠️ CLIC ANNULÉ")
             }
         }, null)
     }
