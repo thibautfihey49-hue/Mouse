@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:padding="16dp"
     android:background="#F5F5F5">
 
@@ -10,106 +9,83 @@
         android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Bienvenue sur BluetoothMouse"
-        android:textSize="14sp"
+        android:text="Prêt"
+        android:textSize="16sp"
         android:padding="12dp"
-        android:background="#E3F2FD"
-        android:textColor="#1565C0"
-        android:gravity="center"
-        android:layout_marginBottom="16dp"/>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📱 1. Sur l'appareil à CONTRÔLER :"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:background="#E8F5E9"
+        android:textColor="#2E7D32"/>
 
     <Button
         android:id="@+id/btnServer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="55dp"
+        android:layout_below="@id/tvStatus"
+        android:layout_marginTop="12dp"
         android:text="🔵 DÉMARRER LE SERVEUR"
-        android:backgroundTint="#2196F3"
+        android:background="#2196F3"
         android:textColor="#FFFFFF"
-        android:paddingVertical="12dp"
-        android:layout_marginBottom="24dp"/>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📲 2. Sur l'appareil qui CONTRÔLE :"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:textSize="15sp"/>
 
     <Button
         android:id="@+id/btnConnect"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🔗 CHOISIR UN APPAREIL BLUETOOTH"
-        android:backgroundTint="#4CAF50"
+        android:layout_height="55dp"
+        android:layout_below="@id/btnServer"
+        android:layout_marginTop="8dp"
+        android:text="🟢 CHOISIR UN APPAREIL"
+        android:background="#4CAF50"
         android:textColor="#FFFFFF"
-        android:paddingVertical="12dp"
-        android:layout_marginBottom="8dp"/>
+        android:textSize="15sp"/>
 
     <Button
         android:id="@+id/btnDisconnect"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🔌 DÉCONNECTER"
-        android:backgroundTint="#F44336"
+        android:layout_height="55dp"
+        android:layout_below="@id/btnConnect"
+        android:layout_marginTop="8dp"
+        android:text="🔴 DÉCONNECTER"
+        android:background="#F44336"
         android:textColor="#FFFFFF"
-        android:paddingVertical="10dp"
-        android:layout_marginBottom="24dp"
+        android:textSize="15sp"
         android:enabled="false"/>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🖱️ Pavé tactile — Déplacez votre doigt"
-        android:textSize="14sp"
-        android:layout_marginBottom="8dp"/>
-
-    <com.remotemouse.TouchpadView
+    <FrameLayout
         android:id="@+id/touchpad"
         android:layout_width="match_parent"
-        android:layout_height="150dp"
-        android:background="#E0E0E0"
+        android:layout_height="300dp"
+        android:layout_below="@id/btnDisconnect"
+        android:layout_marginTop="16dp"
+        android:background="#FFFFFF"
         android:layout_marginBottom="16dp"
+        android:enabled="false">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="🖱️ Déplacez votre doigt ici"
+            android:gravity="center"
+            android:textColor="#999999"
+            android:textSize="16sp"/>
+
+        <View
+            android:id="@+id/cursor"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="@drawable/cursor_shape"
+            android:layout_gravity="top|left"
+            android:translationX="270dp"
+            android:translationY="135dp"/>
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/btnClick"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_below="@id/touchpad"
+        android:text="👆 CLIC GAUCHE"
+        android:background="#673AB7"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
         android:enabled="false"/>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnLeft"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="◀ CLIC GAUCHE"
-            android:layout_marginEnd="4dp"
-            android:enabled="false"/>
-
-        <Button
-            android:id="@+id/btnRight"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="CLIC DROIT ▶"
-            android:layout_marginStart="4dp"
-            android:enabled="false"/>
-    </LinearLayout>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="💡 Les 2 téléphones doivent être ASSOCIÉS en Bluetooth d'abord dans les paramètres"
-        android:textSize="11sp"
-        android:gravity="center"
-        android:layout_marginTop="16dp"
-        android:textColor="#666666"/>
-</LinearLayout>
+</RelativeLayout>
