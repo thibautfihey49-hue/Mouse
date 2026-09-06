@@ -10,7 +10,6 @@ class AccessibilityInputService : AccessibilityService() {
         InputDispatcher.attachService(this)
         Log.d("WiFiMouse", "✅ Service Accessibility DÉMARRÉ")
     }
-    
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
 }

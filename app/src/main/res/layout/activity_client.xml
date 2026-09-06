@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#F5F5F5">
+
+    <Button
+        android:id="@+id/btnBackToMainClient"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="← Retour"
+        android:background="#E0E0E0"
+        android:layout_marginBottom="10dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🎮 SOURIS DISTANTE — Contrôle"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="20dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="IP du serveur :"
+        android:textSize="14sp"/>
+
+    <EditText
+        android:id="@+id/etServerIp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="192.168.1.xxx"
+        android:inputType="text"
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:layout_marginBottom="10dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnConnect"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="🔌 CONNECTER"
+            android:background="#4CAF50"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="5dp"/>
+
+        <Button
+            android:id="@+id/btnDisconnectClient"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="🔌 DÉCONNECTER"
+            android:background="#F44336"
+            android:textColor="#FFFFFF"
+            android:layout_marginStart="5dp"
+            android:enabled="false"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvClientStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="✅ Prêt — Entrez l'IP et connectez-vous"
+        android:textSize="14sp"
+        android:padding="10dp"
+        android:background="#E8F5E9"
+        android:layout_marginTop="15dp"
+        android:layout_marginBottom="15dp"/>
+
+    <View
+        android:id="@+id/touchpadClient"
+        android:layout_width="match_parent"
+        android:layout_height="250dp"
+        android:background="#FFFFFF"
+        android:layout_marginBottom="15dp"
+        android:enabled="false"/>
+
+    <Button
+        android:id="@+id/btnClickClient"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="👆 CLIC GAUCHE"
+        android:background="#673AB7"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="15dp"
+        android:enabled="false"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📊 Journal de connexion :"
+        android:textSize="12sp"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/tvClientDebug"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text=""
+        android:textSize="10sp"
+        android:padding="8dp"
+        android:background="#EEEEEE"
+        android:fontFamily="monospace"/>
+
+</LinearLayout>

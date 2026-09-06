@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#F5F5F5">
+
+    <Button
+        android:id="@+id/btnBackToMain"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="← Retour"
+        android:background="#E0E0E0"
+        android:layout_marginBottom="10dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📱 SERVEUR — Appareil contrôlé"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="20dp"/>
+
+    <TextView
+        android:id="@+id/tvServerIp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🌐 IP: ..."
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:background="#E3F2FD"
+        android:layout_marginBottom="10dp"/>
+
+    <TextView
+        android:id="@+id/tvServerStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="✅ Prêt"
+        android:textSize="15sp"
+        android:padding="12dp"
+        android:background="#E8F5E9"
+        android:layout_marginBottom="20dp"/>
+
+    <Button
+        android:id="@+id/btnStartServer"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:text="▶️ DÉMARRER LE SERVEUR"
+        android:background="#2196F3"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"/>
+
+</LinearLayout>

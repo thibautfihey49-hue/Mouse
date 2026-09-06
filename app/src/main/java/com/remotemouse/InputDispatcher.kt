@@ -6,7 +6,6 @@ import android.graphics.Path
 import android.os.Build
 import android.util.Log
 import android.view.Display
-import kotlin.math.roundToInt
 
 object InputDispatcher {
     private const val TAG = "InputDispatcher"
@@ -14,14 +13,12 @@ object InputDispatcher {
     
     fun attachService(svc: AccessibilityInputService) {
         service = svc
-        Log.d(TAG, "✅ Service Accessibility attaché")
+        Log.d(TAG, "✅ Service attaché")
     }
     
     fun handleCommand(cmd: String) {
         val parts = cmd.split("|")
         if (parts.isEmpty()) return
-        
-        Log.d(TAG, "📥 Commande: $cmd")
         
         when (parts[0]) {
             "MOVE" -> {
@@ -36,15 +33,8 @@ object InputDispatcher {
     }
     
     private fun performMove(dx: Float, dy: Float) {
-        val svc = service ?: run {
-            Log.e(TAG, "❌ Service null")
-            return
-        }
-        
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            Log.e(TAG, "❌ Android 7.0+ requis")
-            return
-        }
+        val svc = service ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         
         try {
             val display: Display? = svc.display
@@ -60,22 +50,14 @@ object InputDispatcher {
                 .build()
             
             svc.dispatchGesture(gesture, null, null)
-            Log.d(TAG, "👆 Mouvement: dx=$dx, dy=$dy")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Erreur mouvement: ${e.message}")
+            Log.e(TAG, "❌ Mouvement: ${e.message}")
         }
     }
     
     private fun performClick() {
-        val svc = service ?: run {
-            Log.e(TAG, "❌ Service null")
-            return
-        }
-        
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            Log.e(TAG, "❌ Android 7.0+ requis")
-            return
-        }
+        val svc = service ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         
         try {
             val display: Display? = svc.display
@@ -90,9 +72,8 @@ object InputDispatcher {
                 .build()
             
             svc.dispatchGesture(gesture, null, null)
-            Log.d(TAG, "👆 Clic à: $centerX,$centerY")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Erreur clic: ${e.message}")
+            Log.e(TAG, "❌ Clic: ${e.message}")
         }
     }
 }

@@ -1,124 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal"
+    android:background="#F5F5F5">
 
-    <RelativeLayout
-        android:layout_width="match_parent"
+    <TextView
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:background="#F5F5F5">
+        android:text="🖱️ WiFi Mouse"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginTop="40dp"
+        android:layout_marginBottom="60dp"/>
 
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Prêt"
-            android:textSize="14sp"
-            android:padding="12dp"
-            android:background="#E3F2FD"
-            android:textColor="#1565C0"/>
+    <Button
+        android:id="@+id/btnServerMode"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:text="📱 Je suis l'appareil à CONTRÔLER"
+        android:background="#2196F3"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:layout_marginBottom="20dp"/>
 
-        <Button
-            android:id="@+id/btnServer"
-            android:layout_width="match_parent"
-            android:layout_height="55dp"
-            android:layout_below="@id/tvStatus"
-            android:layout_marginTop="12dp"
-            android:text="🔵 DÉMARRER LE SERVEUR"
-            android:background="#2196F3"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"/>
+    <Button
+        android:id="@+id/btnClientMode"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:text="🎮 Je suis la SOURIS"
+        android:background="#4CAF50"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"/>
 
-        <TextView
-            android:id="@+id/tvFound"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/btnServer"
-            android:layout_marginTop="8dp"
-            android:text=""
-            android:textSize="13sp"
-            android:textColor="#2E7D32"
-            android:padding="8dp"
-            android:background="#E8F5E9"/>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="\n⚠️ Les 2 appareils doivent être sur le MÊME WiFi"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:layout_marginTop="40dp"/>
 
-        <Button
-            android:id="@+id/btnScan"
-            android:layout_width="match_parent"
-            android:layout_height="55dp"
-            android:layout_below="@id/tvFound"
-            android:layout_marginTop="8dp"
-            android:text="🔍 RECHERCHER UN APPAREIL"
-            android:background="#4CAF50"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"/>
-
-        <Button
-            android:id="@+id/btnDisconnect"
-            android:layout_width="match_parent"
-            android:layout_height="55dp"
-            android:layout_below="@id/btnScan"
-            android:layout_marginTop="8dp"
-            android:text="🔴 DÉCONNECTER"
-            android:background="#F44336"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:enabled="false"/>
-
-        <FrameLayout
-            android:id="@+id/touchpad"
-            android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:layout_below="@id/btnDisconnect"
-            android:layout_marginTop="16dp"
-            android:background="#FFFFFF"
-            android:layout_marginBottom="12dp"
-            android:enabled="false">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:text="🖱️ Déplacez votre doigt ici"
-                android:gravity="center"
-                android:textColor="#999999"
-                android:textSize="16sp"/>
-
-            <View
-                android:id="@+id/cursor"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@drawable/cursor_shape"
-                android:layout_gravity="top|left"
-                android:translationX="270dp"
-                android:translationY="85dp"/>
-        </FrameLayout>
-
-        <Button
-            android:id="@+id/btnClick"
-            android:layout_width="match_parent"
-            android:layout_height="55dp"
-            android:layout_below="@id/touchpad"
-            android:text="👆 CLIC GAUCHE"
-            android:background="#673AB7"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:enabled="false"/>
-
-        <TextView
-            android:id="@+id/tvDebug"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/btnClick"
-            android:layout_marginTop="16dp"
-            android:text="📊 DEBUG:\n"
-            android:textSize="10sp"
-            android:fontFamily="monospace"
-            android:textColor="#333333"
-            android:padding="8dp"
-            android:background="#FFF3E0"
-            android:maxLines="15"
-            android:scrollbars="vertical"/>
-
-    </RelativeLayout>
-</ScrollView>
+</LinearLayout>

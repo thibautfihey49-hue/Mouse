@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">WiFiMouse</string>
-    <string name="accessibility_description">Permet de contrôler cet appareil à distance depuis un autre téléphone via WiFi</string>
+    <string name="accessibility_description">Permet de contrôler cet appareil à distance via WiFi</string>
 </resources>
