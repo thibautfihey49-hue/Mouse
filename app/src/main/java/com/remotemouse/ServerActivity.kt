@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -59,7 +60,7 @@ class ServerActivity : AppCompatActivity() {
             btnStart.text = "ACTIVER L'ACCESSIBILITÉ"
             btnStart.setOnClickListener {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                Toast.makeText(this, "Recherchez WiFiMouse → Activez", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@ServerActivity, "Recherchez WiFiMouse → Activez", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -67,7 +68,7 @@ class ServerActivity : AppCompatActivity() {
     private fun startServer() {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
         if (enabled?.contains(packageName) != true) {
-            Toast.makeText(this, "Activez l'accessibilité d'abord", Toast.LENGTH_LONG).show()
+            Toast.makeText(this@ServerActivity, "Activez l'accessibilité d'abord", Toast.LENGTH_LONG).show()
             return
         }
         
@@ -95,7 +96,6 @@ class ServerActivity : AppCompatActivity() {
                         input = BufferedReader(InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8))
                         output = PrintWriter(BufferedWriter(OutputStreamWriter(client.getOutputStream(), StandardCharsets.UTF_8)), true)
                         
-                        // BOUCLE DE LECTURE — LA PLUS IMPORTANTE
                         while (isRunning && !client.isClosed) {
                             try {
                                 val line = input!!.readLine() ?: break

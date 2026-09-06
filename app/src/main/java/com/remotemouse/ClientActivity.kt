@@ -84,7 +84,7 @@ class ClientActivity : AppCompatActivity() {
     private fun connect() {
         val ip = etIp.text.toString().trim()
         if (ip.isEmpty()) {
-            Toast.makeText(this, "Entrez l'IP du serveur", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@ClientActivity, "Entrez l'IP du serveur", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -120,7 +120,7 @@ class ClientActivity : AppCompatActivity() {
                 debugLog("❌ ${e.message}")
                 runOnUiThread {
                     tvStatus.text = "❌ ÉCHEC: ${e.message}"
-                    Toast.makeText(this, "Connexion échouée", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@ClientActivity, "Connexion échouée", Toast.LENGTH_SHORT).show()
                 }
                 isConnected = false
                 updateUI(false)
@@ -131,7 +131,9 @@ class ClientActivity : AppCompatActivity() {
     private fun sendCommand(cmd: String) {
         if (!isConnected || output == null) {
             debugLog("❌ Non connecté")
-            runOnUiThread { Toast.makeText(this, "Connectez-vous d'abord !", Toast.LENGTH_SHORT).show() }
+            runOnUiThread {
+                Toast.makeText(this@ClientActivity, "Connectez-vous d'abord !", Toast.LENGTH_SHORT).show()
+            }
             return
         }
         
