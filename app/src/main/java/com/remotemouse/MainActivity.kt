@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -21,6 +22,7 @@ import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -28,7 +30,7 @@ import java.io.OutputStreamWriter
 import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var tvStatus: android.widget.TextView
+    private lateinit var tvStatus: TextView
     private lateinit var btnServer: Button
     private lateinit var btnConnect: Button
     private lateinit var touchpad: TouchpadView
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private var sender: OutputStreamWriter? = null
     private var isServer = false
     private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val TAG = "BluetoothMouse"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,9 +62,18 @@ class MainActivity : AppCompatActivity() {
         btnServer.setOnClickListener { startServer() }
         btnConnect.setOnClickListener { showPairedDevices() }
         btnDisconnect.setOnClickListener { disconnect() }
-        touchpad.onTouchListener = { dx, dy -> sendCmd("MOVE|$dx|$dy") }
-        btnLeft.setOnClickListener { sendCmd("CLICK") }
-        btnRight.setOnClickListener { sendCmd("RIGHT_CLICK") }
+        touchpad.onTouchListener = { dx, dy -> 
+            Log.d(TAG, "Envoi: MOVE|$dx|$dy")
+            sendCmd("MOVE|$dx|$dy") 
+        }
+        btnLeft.setOnClickListener { 
+            Log.d(TAG, "Envoi: CLIC")
+            sendCmd("CLICK") 
+        }
+        btnRight.setOnClickListener { 
+            Log.d(TAG, "Envoi: RIGHT_CLICK")
+            sendCmd("RIGHT_CLICK") 
+        }
 
         initBluetooth()
     }
@@ -126,13 +138,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun ready() {
-        tvStatus.text = "✅ Bluetooth prêt\n\n📱 Sur l'appareil à CONTRÔLER :\n→ Démarrer le serveur\n\n📲 Sur l'appareil qui CONTRÔLE :\n→ Associer en Bluetooth puis se connecter"
+        tvStatus.text = "✅ Bluetooth prêt\n\n📱 Serveur → Démarrer + activer accessibilité\n📲 Client → Se connecter"
         updateUI(false)
     }
 
     private fun startServer() {
         if (!checkAccessibility()) {
-            Toast.makeText(this, "👉 Active l'accessibilité pour BluetoothMouse", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "👉 Étape 1/2 : Active l'accessibilité pour BluetoothMouse", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
@@ -144,37 +156,52 @@ class MainActivity : AppCompatActivity() {
         discoverable.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
         startActivity(discoverable)
 
-        tvStatus.text = "⏳ SERVEUR EN ÉCOUTE\n\nNom: ${bluetoothAdapter?.name}\nEn attente de connexion..."
+        tvStatus.text = "⏳ SERVEUR EN ÉCOUTE...\n\nNom: ${bluetoothAdapter?.name}\nEn attente de connexion\n\n⚠️ VÉRIFIE : Accessibilité = ACTIVÉE ✅"
 
         serverJob = scope.launch {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                     ActivityCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
-                    runOnUiThread { Toast.makeText(this@MainActivity, "Permission Bluetooth requise", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "Permission requise", Toast.LENGTH_SHORT).show() }
                     return@launch
                 }
+                
                 val serverSocket = bluetoothAdapter?.listenUsingRfcommWithServiceRecord("BluetoothMouse", BLUETOOTH_UUID)
+                Log.d(TAG, "Serveur démarré, en attente...")
+                
                 val clientSocket = serverSocket?.accept()
                 serverSocket?.close()
                 
                 clientSocket?.let {
                     socket = it
                     val device = it.remoteDevice
+                    Log.d(TAG, "Connecté à: ${device.name}")
                     
                     runOnUiThread {
-                        tvStatus.text = "✅ CONNECTÉ À : ${device.name}\n\nUtilise le pavé tactile !"
+                        tvStatus.text = "✅ CONNECTÉ À : ${device.name}\n\n📡 En attente des commandes..."
                         updateUI(true, false)
                     }
                     
+                    // LECTURE AMÉLIORÉE — ligne par ligne
                     val reader = BufferedReader(InputStreamReader(it.inputStream))
                     while (true) {
-                        val cmd = reader.readLine() ?: break
-                        Log.d("BluetoothMouse", "Reçu: $cmd")
-                        runOnUiThread { InputDispatcher.dispatchCommand(cmd) }
+                        try {
+                            val cmd = reader.readLine()
+                            if (cmd == null) {
+                                Log.d(TAG, "Connexion fermée par l'autre appareil")
+                                break
+                            }
+                            Log.d(TAG, "COMMANDE REÇUE: '$cmd'")
+                            InputDispatcher.dispatchCommand(cmd)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Erreur lecture: ${e.message}")
+                            break
+                        }
                     }
+                    Log.d(TAG, "Boucle de lecture terminée")
                 }
             } catch (e: Exception) {
-                Log.e("BluetoothMouse", "Serveur: ${e.message}")
+                Log.e(TAG, "Serveur erreur: ${e.message}", e)
                 runOnUiThread {
                     if (!isDestroyed) {
                         tvStatus.text = "❌ Erreur: ${e.message}"
@@ -225,11 +252,12 @@ class MainActivity : AppCompatActivity() {
                 sender = OutputStreamWriter(socket?.outputStream, "UTF-8")
                 
                 runOnUiThread {
-                    tvStatus.text = "✅ CONNECTÉ !\n\nUtilise le pavé tactile ci-dessous"
+                    tvStatus.text = "✅ CONNECTÉ !\n\n🖱️ Utilise le pavé tactile ci-dessous"
                     updateUI(true, false)
                 }
+                Log.d(TAG, "Client connecté, prêt à envoyer")
             } catch (e: Exception) {
-                Log.e("BluetoothMouse", "Connexion: ${e.message}")
+                Log.e(TAG, "Connexion échouée: ${e.message}", e)
                 runOnUiThread {
                     tvStatus.text = "❌ ÉCHEC\n\n• Le serveur est-il démarré ?\n• Les 2 appareils sont-ils associés ?\n• Erreur: ${e.message}"
                     resetUI()
@@ -239,13 +267,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendCmd(cmd: String): Boolean {
-        if (sender == null || socket?.isConnected != true) return false
+        if (sender == null || socket?.isConnected != true) {
+            Log.w(TAG, "Pas connecté ou writer null")
+            return false
+        }
         return try {
             sender?.write("$cmd\n")
             sender?.flush()
+            Log.d(TAG, "Envoyé: $cmd")
             true
         } catch (e: Exception) {
-            Log.e("BluetoothMouse", "Envoi: ${e.message}")
+            Log.e(TAG, "Envoi échoué: ${e.message}")
             disconnect()
             false
         }
@@ -284,7 +316,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkAccessibility(): Boolean {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        return enabled?.contains(packageName) == true
+        val result = enabled?.contains(packageName) == true
+        Log.d(TAG, "Accessibilité: $result")
+        return result
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
