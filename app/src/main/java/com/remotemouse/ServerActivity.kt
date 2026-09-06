@@ -59,11 +59,13 @@ class ServerActivity : AppCompatActivity() {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
         val myService = "$packageName/.AccessibilityInputService"
         if (enabled == null || !enabled.contains(myService)) {
-            tvStatus.text = "⚠️ ACTIVEZ L'ACCESSIBILITÉ !"
-            btnStart.text = "🔧 ACTIVER L'ACCESSIBILITÉ"
-            btnStart.setOnClickListener {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                Toast.makeText(this@ServerActivity, "Recherchez WiFiMouse → Activez", Toast.LENGTH_LONG).show()
+            runOnUiThread {
+                tvStatus.text = "⚠️ ACTIVEZ L'ACCESSIBILITÉ !"
+                btnStart.text = "🔧 ACTIVER L'ACCESSIBILITÉ"
+                btnStart.setOnClickListener {
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    Toast.makeText(this@ServerActivity, "Recherchez WiFiMouse → Activez", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -77,9 +79,11 @@ class ServerActivity : AppCompatActivity() {
         }
         
         isRunning = true
-        btnStart.isEnabled = false
-        tvStatus.text = "🟡 DÉMARRAGE..."
-        tvReceived.text = "📋 Commandes reçues:\n"
+        runOnUiThread {
+            btnStart.isEnabled = false
+            tvStatus.text = "🟡 DÉMARRAGE..."
+            tvReceived.text = "📋 Commandes reçues:\n"
+        }
         
         scope.launch {
             try {

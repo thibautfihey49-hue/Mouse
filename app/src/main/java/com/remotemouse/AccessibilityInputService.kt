@@ -8,7 +8,7 @@ class AccessibilityInputService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         InputDispatcher.attachService(this)
-        Log.d("WiFiMouse", "✅ Service Accessibility DÉMARRÉ")
+        Log.d("WiFiMouse", "Service Accessibility DÉMARRÉ")
     }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}

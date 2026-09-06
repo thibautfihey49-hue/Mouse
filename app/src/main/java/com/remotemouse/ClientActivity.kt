@@ -89,9 +89,11 @@ class ClientActivity : AppCompatActivity() {
         }
         
         isRunning = true
-        updateUI(true)
-        tvStatus.text = "🔌 Connexion à $ip:$PORT..."
-        tvDebug.text = ""
+        runOnUiThread {
+            updateUI(true)
+            tvStatus.text = "🔌 Connexion à $ip:$PORT..."
+            tvDebug.text = ""
+        }
         
         scope.launch {
             try {
@@ -108,6 +110,7 @@ class ClientActivity : AppCompatActivity() {
                 
                 runOnUiThread {
                     tvStatus.text = "✅ CONNECTÉ !\nDéplacez votre doigt sur le pavé."
+                    updateUI(false)
                 }
                 
                 while (isRunning && isConnected) {
@@ -121,16 +124,15 @@ class ClientActivity : AppCompatActivity() {
                 runOnUiThread {
                     tvStatus.text = "❌ ÉCHEC: ${e.message}"
                     Toast.makeText(this@ClientActivity, "Connexion échouée", Toast.LENGTH_SHORT).show()
+                    isConnected = false
+                    updateUI(false)
                 }
-                isConnected = false
-                updateUI(false)
             }
         }
     }
     
     private fun sendCommand(cmd: String) {
         if (!isConnected || output == null) {
-            debugLog("❌ Non connecté")
             runOnUiThread {
                 Toast.makeText(this@ClientActivity, "Connectez-vous d'abord !", Toast.LENGTH_SHORT).show()
             }
@@ -154,18 +156,21 @@ class ClientActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 debugLog("❌ ${e.message}")
                 isConnected = false
-                updateUI(false)
+                runOnUiThread { updateUI(false) }
             }
         }
     }
     
     private fun disconnect() {
-        isRunning = false; isConnected = false
+        isRunning = false
+        isConnected = false
         try { input?.close(); output?.close(); socket?.close() } catch (e: Exception) {}
         input = null; output = null; socket = null
-        tvStatus.text = "🔌 Déconnecté"
-        tvDebug.text = ""
-        updateUI(false)
+        runOnUiThread {
+            tvStatus.text = "🔌 Déconnecté"
+            tvDebug.text = ""
+            updateUI(false)
+        }
     }
     
     private fun updateUI(connecting: Boolean) {
