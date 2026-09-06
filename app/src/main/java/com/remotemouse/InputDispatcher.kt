@@ -17,7 +17,7 @@ object InputDispatcher {
     
     fun attachService(svc: AccessibilityInputService) {
         service = svc
-        Log.d(TAG, "✅ Service attaché")
+        Log.d(TAG, "Service attaché")
         val wm = svc.getSystemService(AccessibilityService.WINDOW_SERVICE) as WindowManager
         val display = wm.defaultDisplay
         val realSize = android.graphics.Point()
@@ -26,11 +26,11 @@ object InputDispatcher {
         displayHeight = realSize.y.toFloat()
         currentX = displayWidth / 2f
         currentY = displayHeight / 2f
-        Log.d(TAG, "📐 Taille écran: ${displayWidth}x${displayHeight}")
+        Log.d(TAG, "Ecran: ${displayWidth}x${displayHeight}")
     }
     
     fun handleCommand(cmd: String) {
-        Log.d(TAG, "📥 COMMANDE REÇUE: $cmd")
+        Log.d(TAG, "Commande: $cmd")
         val parts = cmd.split("|")
         if (parts.isEmpty()) return
         
@@ -47,18 +47,11 @@ object InputDispatcher {
     }
     
     private fun performMove(dx: Float, dy: Float) {
-        val svc = service ?: run {
-            Log.e(TAG, "❌ Service NULL — Accessibilité ACTIVÉE ?")
-            return
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            Log.e(TAG, "❌ Android N+ requis")
-            return
-        }
+        val svc = service ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         
         currentX = (currentX + dx).coerceIn(50f, displayWidth - 50f)
         currentY = (currentY + dy).coerceIn(50f, displayHeight - 50f)
-        Log.d(TAG, "📍 Déplacement: ($currentX, $currentY)")
         
         val path = Path()
         path.moveTo(currentX, currentY)
@@ -67,21 +60,12 @@ object InputDispatcher {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 1))
             .build()
         
-        // ✅ Sans callback = le plus simple et le plus fiable
         svc.dispatchGesture(gesture, null, null)
     }
     
     private fun performClick() {
-        val svc = service ?: run {
-            Log.e(TAG, "❌ Service NULL — Accessibilité ACTIVÉE ?")
-            return
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            Log.e(TAG, "❌ Android N+ requis")
-            return
-        }
-        
-        Log.d(TAG, "👆 CLIC à ($currentX, $currentY)")
+        val svc = service ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         
         val path = Path()
         path.moveTo(currentX, currentY)
@@ -90,7 +74,6 @@ object InputDispatcher {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
             .build()
         
-        // ✅ Sans callback
         svc.dispatchGesture(gesture, null, null)
     }
 }
