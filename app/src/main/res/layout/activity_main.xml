@@ -9,58 +9,61 @@
     <TextView android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Welcome to RemoteMouse"
-        android:textSize="15sp"
+        android:text="Bienvenue sur BluetoothMouse"
+        android:textSize="14sp"
         android:padding="12dp"
-        android:background="#E8F5E9"
-        android:textColor="#2E7D32"
+        android:background="#E3F2FD"
+        android:textColor="#1565C0"
         android:gravity="center"
         android:layout_marginBottom="16dp"/>
 
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="1. On the device to control:"
+        android:text="📱 1. Sur l'appareil à CONTRÔLER :"
         android:textSize="14sp" android:textStyle="bold" android:layout_marginBottom="8dp"/>
 
-    <Button android:id="@+id/btnStartServer"
+    <Button android:id="@+id/btnServer"
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="START SERVER"
-        android:background="#4CAF50" android:textColor="#FFFFFF"
+        android:text="🔵 DÉMARRER LE SERVEUR"
+        android:background="#2196F3" android:textColor="#FFFFFF"
         android:paddingVertical="12dp" android:layout_marginBottom="24dp"/>
 
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="2. On the controlling device:"
+        android:text="📲 2. Sur l'appareil qui CONTRÔLE :"
         android:textSize="14sp" android:textStyle="bold" android:layout_marginBottom="8dp"/>
 
     <Button android:id="@+id/btnConnect"
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="SEARCH FOR DEVICE"
-        android:background="#2196F3" android:textColor="#FFFFFF"
+        android:text="🔗 CHOISIR UN APPAREIL BLUETOOTH"
+        android:background="#4CAF50" android:textColor="#FFFFFF"
         android:paddingVertical="12dp" android:layout_marginBottom="8dp"/>
 
     <Button android:id="@+id/btnDisconnect"
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="DISCONNECT"
+        android:text="🔌 DÉCONNECTER"
         android:background="#F44336" android:textColor="#FFFFFF"
         android:paddingVertical="10dp" android:layout_marginBottom="24dp"
         android:enabled="false"/>
 
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Touchpad — Move your finger"
+        android:text="🖱️ Pavé tactile — Déplacez votre doigt"
         android:textSize="14sp" android:layout_marginBottom="8dp"/>
 
     <com.remotemouse.TouchpadView android:id="@+id/touchpad"
         android:layout_width="match_parent" android:layout_height="150dp"
-        android:background="#E0E0E0" android:layout_marginBottom="16dp"/>
+        android:background="#E0E0E0" android:layout_marginBottom="16dp"
+        android:enabled="false"/>
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-        <Button android:id="@+id/btnLeftClick" android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:text="LEFT CLICK" android:layout_marginEnd="4dp"/>
-        <Button android:id="@+id/btnRightClick" android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:text="RIGHT CLICK" android:layout_marginStart="4dp"/>
+        <Button android:id="@+id/btnLeft" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="◀ CLIC GAUCHE" android:layout_marginEnd="4dp"
+            android:enabled="false"/>
+        <Button android:id="@+id/btnRight" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="CLIC DROIT ▶" android:layout_marginStart="4dp"
+            android:enabled="false"/>
     </LinearLayout>
 
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Both devices must be on the SAME Wi-Fi"
-        android:textSize="12sp" android:gravity="center"
+        android:text="💡 Les 2 téléphones doivent être ASSOCIÉS en Bluetooth d'abord dans les paramètres"
+        android:textSize="11sp" android:gravity="center"
         android:layout_marginTop="16dp" android:textColor="#666666"/>
 </LinearLayout>

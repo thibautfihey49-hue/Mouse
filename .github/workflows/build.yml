@@ -1,4 +1,4 @@
-name: Build APK
+name: Build BluetoothMouse APK
 
 on:
   push:
@@ -28,5 +28,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RemoteMouse-APK
+          name: BluetoothMouse-APK
           path: app/build/outputs/apk/debug/app-debug.apk
