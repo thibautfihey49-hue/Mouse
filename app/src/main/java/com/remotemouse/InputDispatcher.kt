@@ -54,7 +54,7 @@ object InputDispatcher {
     private fun performRightClick() {
         val svc = service ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
+            svc.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS)
         }
     }
 }
